@@ -18,6 +18,7 @@ Keypapers can be identified by OpenAlex IDs or DOIs.
 ### 2.2 2. Run a snowball search
 
 ``` r
+
 snowball_dir <- "./snowball_ids"
 pro_snowball(
   identifier = c("W2741809807", "W2755950973"),
@@ -27,6 +28,7 @@ pro_snowball(
 ```
 
 ``` r
+
 snowball_dir_dois <- "./snowball_dois"
 pro_snowball(
   doi = c("10.1016/j.joi.2017.08.007", "10.7717/peerj.4375"),
@@ -43,6 +45,7 @@ to load nodes and edges. The output can be an Arrow Dataset (default) or
 collected into memory as tibbles.
 
 ``` r
+
 snowball <- read_snowball(
   snowball = snowball_dir,
   edge_type = c("core", "extended"),

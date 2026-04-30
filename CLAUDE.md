@@ -3,94 +3,127 @@
 This file provides guidance to Claude Code (claude.ai/code) when working
 with code in this repository.
 
-## Package Overview
+## Developer Skill
 
-`openalexSnowball` is an R package for performing snowball citation
-searches on the [OpenAlex](https://openalex.org/) academic graph.
-Starting from seed papers (“keypapers”), it retrieves all citing and
-cited works, then extracts the citation network as nodes and edges
-stored in Parquet format. It is built on top of `openalexPro` (≥0.4.0)
-and processes large corpora without memory constraints by using
-disk-based storage.
+All development in this repository follows the R package developer
+skill. Read and apply:
+
+- `skills/r-package-developer/SKILL.md` — workflow phases,
+  non-negotiable rules, governance
+- `skills/r-package-developer/references/checklist.md` —
+  pre-commit/merge execution gate
+- `skills/r-package-developer/references/commit-template.md` — commit
+  message structure
+- `skills/r-package-developer/references/branch-protection-baseline.md`
+  — branch rules
+- `skills/r-package-developer/references/agent-r-guidance.md` —
+  R-specific agent guidance
+
+To sync the skill from upstream:
+`bash skills/r-package-developer/scripts/sync-from-github.sh`
+
+## Project Overview
+
+**openalexSnowball** is an R package implementing citation network
+“snowball searches” on the OpenAlex academic graph. Starting from seed
+papers (keypapers), it follows citation links outward to retrieve papers
+that cite or are cited by the seeds, building a network graph stored as
+Apache Parquet files for memory-efficient on-disk processing.
 
 ## Common Commands
 
-Run in an R session or via `Rscript -e`:
-
 ``` r
-# Document (regenerate NAMESPACE and Rd files)
-roxygen2::roxygenise()
+
+# Load package for interactive development
+devtools::load_all()
+
+# Run full R CMD check
+devtools::check()
 
 # Run all tests
 devtools::test()
 
 # Run a single test file
-testthat::test_file("tests/testthat/test-004-pro_snowball.R")
+devtools::test(filter = "pro_snowball")
 
-# Check coverage
+# Test coverage
 covr::package_coverage()
 
-# Full package check
-devtools::check()
-
-# Build documentation site
-pkgdown::build_site()
+# Rebuild documentation (Roxygen2)
+devtools::document()
 ```
 
 ## Architecture
 
-### Data Pipeline
+### Core Pipeline (4 functions)
 
-    Seed papers (OpenAlex ID or DOI)
-      → pro_snowball()
-          → pro_snowball_get_nodes()   # fetches papers via openalexPro
-          → pro_snowball_extract_edges()  # SQL-based edge classification
-      → Parquet dataset (output/nodes/ + output/edges/)
-          → read_snowball()            # load as Arrow Dataset or tibble
+1.  **[`pro_snowball()`](https://rkrug.github.io/openalexSnowball/reference/pro_snowball.md)**
+    — Top-level orchestrator. Accepts `identifier` (OpenAlex IDs) or
+    `doi` (mutually exclusive). Returns path to the output directory.
 
-### Core Files
+2.  **[`pro_snowball_get_nodes()`](https://rkrug.github.io/openalexSnowball/reference/pro_snowball_get_nodes.md)**
+    — Phase 1: Retrieves keypapers + their citing/cited papers from the
+    OpenAlex API via
+    [`openalexPro::pro_query()`](https://rkrug.github.io/openalexPro/reference/pro_query.html).
+    Writes partitioned parquet at `output/nodes/` with a `relation`
+    column (`keypaper`, `citing`, `cited`). Each retrieval stage goes
+    through: API → JSON files → JSONL → Parquet.
 
-| File                             | Role                                                                                                                       |
-|----------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `R/pro_snowball.R`               | Main entry point; orchestrates the pipeline                                                                                |
-| `R/pro_snowball_get_nodes.R`     | Retrieves keypapers + citing/cited works via openalexPro; writes nodes Parquet                                             |
-| `R/pro_snowball_extract_edges.R` | Reads nodes, runs DuckDB SQL to classify edges                                                                             |
-| `R/read_snowball.R`              | Reads output Parquet as Arrow Dataset or collected tibble                                                                  |
-| `inst/extract_edges.sql`         | DuckDB SQL that creates `keypaper`, `edges_basic`, and `edges` views; classifies edges as `core`, `extended`, or `outside` |
+3.  **[`pro_snowball_extract_edges()`](https://rkrug.github.io/openalexSnowball/reference/pro_snowball_extract_edges.md)**
+    — Phase 2: Loads the nodes parquet into DuckDB, executes
+    `inst/extract_edges.sql`, and writes partitioned parquet at
+    `output/edges/` with an `edge_type` column.
 
-### Technology Stack
+4.  **[`read_snowball()`](https://rkrug.github.io/openalexSnowball/reference/read_snowball.md)**
+    — Reads a completed snowball result directory; returns a list with
+    `nodes` and `edges` as either Arrow Datasets (default, on-disk) or
+    tibbles (`return_data = TRUE`). Supports filtering by `edge_type`.
 
-- **openalexPro**: Drives the
-  `pro_query → pro_request → pro_request_jsonl` pipeline that fetches
-  and converts OpenAlex API responses to Parquet
-- **DuckDB**: In-process SQL engine used for aggregation in
-  `pro_snowball_get_nodes` and for edge classification in
-  `inst/extract_edges.sql`
-- **Apache Arrow**: Parquet I/O and lazy columnar evaluation via
-  [`arrow::open_dataset()`](https://arrow.apache.org/docs/r/reference/open_dataset.html)
-- **dplyr**: Tidy manipulation interface over Arrow/DuckDB
+### Edge Classification (in `inst/extract_edges.sql`)
 
-### Edge Types
+Three mutually-useful edge types: - `core` — at least one endpoint is a
+keypaper AND both endpoints are in the dataset - `extended` — both
+endpoints are in the dataset (superset of core) - `outside` — at least
+one endpoint is external to the dataset
 
-Edges are classified by the SQL script into three types: - **core**:
-edges directly from/to keypapers - **extended**: all edges between
-collected papers (superset of core) - **outside**: edges pointing to
-papers not in the nodes collection
+### Key Design Patterns
 
-### Testing
+- **On-disk processing**: Arrow + DuckDB throughout; data is never fully
+  loaded into R memory during the pipeline.
+- **Dependency on openalexPro**: `openalexPro` (\>= 0.4.0) handles all
+  API communication and JSON→Parquet conversion. openalexSnowball
+  orchestrates calls to it.
+- **NSE**: Uses `rlang` `.data` and `.env` pronouns in dplyr chains.
 
-Tests use **testthat** (edition 3) with **VCR** for HTTP cassette
-replay. The main test file (`tests/testthat/test-004-pro_snowball.R`)
-validates output against
-[`openalexR::oa_snowball()`](https://docs.ropensci.org/openalexR/reference/oa_snowball.html)
-as a reference implementation. VCR cassettes live in `tests/fixtures/`.
-The helper `tests/testthat/helper_vcr.R` configures VCR for the test
-suite.
+## Testing
+
+Tests live in `tests/testthat/` and use VCR cassettes
+(`tests/fixtures/vcr/`) to mock all OpenAlex API calls — no live network
+requests needed during testing.
+
+- `helper_vcr.R` configures cassette paths and filters sensitive headers
+  (`api_key`, `Authorization`).
+- Tests compare output against the reference implementation
+  [`openalexR::oa_snowball()`](https://docs.ropensci.org/openalexR/reference/oa_snowball.html).
+- Snapshot files are in `tests/testthat/_snaps/`.
+
+When adding or updating tests that involve API calls, record new VCR
+cassettes rather than making live requests.
 
 ## CI/CD
 
-Four GitHub Actions workflows: - **R-CMD-check.yaml**: matrix check
-across macOS/Windows/Ubuntu and R release/devel/oldrel-1 -
-**test-coverage.yaml**: coverage via `covr`, uploads to Codecov -
-**pkgdown.yaml**: builds and deploys the documentation site to GitHub
-Pages - **rhub.yaml**: additional R-hub platform checks
+| Workflow | Trigger | Purpose |
+|----|----|----|
+| `R-CMD-check.yaml` | push to main/dev, PRs | Matrix check across macOS, Windows, Ubuntu × R versions |
+| `test-coverage.yaml` | push to main/master, PRs | Codecov coverage reporting |
+| `pkgdown.yaml` | — | Builds documentation site |
+| `rhub.yaml` | — | R-hub comprehensive environment checks |
+
+## Notes
+
+- Vignettes use Quarto (`.qmd`) with `execute: eval: false` to avoid
+  live API calls during package builds.
+- The `.vscode/settings.json` configures a DuckDB SQLTools connection
+  for interactive SQL development against the in-memory DuckDB engine.
+- Code and documentation in this repository have been generated with LLM
+  assistance and reviewed by humans.

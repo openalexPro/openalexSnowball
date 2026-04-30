@@ -94,6 +94,7 @@ The latest “stable” version is available via
 [r-universe](https://rkrug.r-universe.dev/openalexPro)
 
 ``` r
+
 install.packages('openalexPro', repos = c('https://rkrug.r-universe.dev', 'https://cloud.r-project.org'))
 ```
 
@@ -103,6 +104,7 @@ and can deal with changing function definitions, or whant to test new
 functionality, is this not recommended.
 
 ``` r
+
 remotes::install_github("rkrug/openalexPro", ref = "dev")
 ```
 
@@ -111,6 +113,7 @@ remotes::install_github("rkrug/openalexPro", ref = "dev")
 First, the package needs to be loaded
 
 ``` r
+
 library(openalexPro)
 ```
 
@@ -127,18 +130,21 @@ verified before sending them to OpenAlex.
 The supported filter names can be retrieved by running
 
 ``` r
+
 opt_filter_names()
 ```
 
 and supported select fields by running
 
 ``` r
+
 opt_select_fields()
 ```
 
 This defines a basic query.
 
 ``` r
+
 query <- pro_query(
   title_and_abstract.search = "biodiversity AND conservation AND IPBES",
   entity = "works"
@@ -156,6 +162,7 @@ is chunked into chunks of a maximum of the value of the argument
 ### 2. Retrieving records (`openalexPro::pro_request()`)
 
 ``` r
+
 openalexPro::pro_request(
   query_url = query,
   output = "json",
@@ -174,6 +181,7 @@ This step prepares the json files for the final ingestion into a
 `parquet` database:
 
 ``` r
+
 openalex_jsonl_folder <- openalexPoro2::pro_request_jsonl(
   input_json = "json_files",
   output = json_extracted,
@@ -191,6 +199,7 @@ saved as individual `parquet` files in the folder provided by the
 `output` argument.
 
 ``` r
+
 parquet <- "./parquet"
 openalexPro::pro_request_jsonl_parquet(
   json_dir = json_extracted,
