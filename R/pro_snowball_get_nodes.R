@@ -120,7 +120,7 @@ pro_snowball_get_nodes <- function(
   # fetching documents citing the target keypapers (incoming - to: keypaper)
   # ----
 
-  if (limit == "onlyCiting") {
+  if (limit != "onlyCited") {
     if (verbose) {
       message(
         "Collecting all documents citing the target keypapers (to = keypaper)..."
@@ -148,7 +148,7 @@ pro_snowball_get_nodes <- function(
 
   # fetching documents cited by the keypapers (outgoing - from: keypaper
   # )-----------------------
-  if (limit == "onlyCited") {
+  if (limit != "onlyCiting") {
     if (verbose) {
       message(
         "Collecting all documents cited by the target keypapers ..."
@@ -232,6 +232,13 @@ pro_snowball_get_nodes <- function(
     file.path(output, "nodes")
   ) |>
     DBI::dbExecute(conn = con)
+
+  # Cleanup intermediate directories --------------------------------------
+
+  unlink(file.path(output, "cited_json"), recursive = TRUE)
+  unlink(file.path(output, "cited_jsonl"), recursive = TRUE)
+  unlink(file.path(output, "citing_json"), recursive = TRUE)
+  unlink(file.path(output, "citing_jsonl"), recursive = TRUE)
 
   # Return path to nodes ------------------------------------------------
 
