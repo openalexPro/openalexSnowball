@@ -109,7 +109,7 @@ pro_snowball_get_nodes <- function(
     SELECT
       id
     FROM 
-      read_json_auto( '%s/*.json' )
+      read_json_auto( '%s/**/*.json' )
     ",
     file.path(output, "keypaper_jsonl")
   ) |>
