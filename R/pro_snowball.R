@@ -52,6 +52,14 @@ pro_snowball <- function(
     verbose = verbose
   )
 
+  unlink(
+    c(
+      file.path(output, "keypaper_json"),
+      file.path(output, "keypaper_jsonl")
+    ),
+    recursive = TRUE
+  )
+
   # Return path to snowball ------------------------------------------------
 
   return(normalizePath(output))
