@@ -98,7 +98,7 @@ pro_snowball_get_nodes <- function(
   )
   openalexPro::pro_request_jsonl_parquet(
     input_jsonl = x,
-    output = file.path(output, "keypaper_parquet"),
+    output = file.path(output, "keypaper"),
     verbose = verbose
   )
 

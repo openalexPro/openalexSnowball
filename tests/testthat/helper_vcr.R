@@ -13,10 +13,10 @@ invisible(vcr::vcr_configure(
   filter_query_parameters = list(api_key = "<api-key>")
 ))
 
-try(
-  Sys.setenv(openalexPro.apikey = keyring::key_get("API_openalex")),
-  silent = TRUE
-)
+# try(
+#   Sys.setenv(openalexPro.apikey = keyring::key_get("API_openalex")),
+#   silent = TRUE
+# )
 
 if (Sys.getenv("openalexPro.apikey") == "") {
   Sys.setenv(openalexPro.apikey = "<api-key>")

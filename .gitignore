@@ -57,3 +57,4 @@ output_parquet/*
 only_local/
 .DS_Store
 **/.quarto/
+/.claude/worktrees
