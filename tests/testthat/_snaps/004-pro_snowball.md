@@ -66,7 +66,7 @@
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
       # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
@@ -141,7 +141,7 @@
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
       # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
@@ -216,7 +216,7 @@
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
       # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
@@ -291,7 +291,7 @@
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
       # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
