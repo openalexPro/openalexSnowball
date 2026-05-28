@@ -1,15 +1,18 @@
-# pro_snowball
+# pro_snowball result has nodes and edges
 
     Code
-      names(results_openalexPro)
+      names(results_pro)
     Output
       [1] "nodes" "edges"
+
+# pro_snowball nodes have expected shape
+
     Code
-      nrow(results_openalexPro$nodes)
+      nrow(results_pro$nodes)
     Output
       [1] 46
     Code
-      sort(names(results_openalexPro$nodes))
+      sort(names(results_pro$nodes))
     Output
        [1] "abstract"                       "abstract_inverted_index"       
        [3] "apc_list"                       "apc_paid"                      
@@ -38,17 +41,22 @@
       [49] "relation"                       "sustainable_development_goals" 
       [51] "title"                          "topics"                        
       [53] "type"                           "updated_date"                  
+
+# pro_snowball edges have expected shape
+
     Code
-      nrow(results_openalexPro$edges)
+      nrow(results_pro$edges)
     Output
       [1] 45
     Code
-      sort(names(results_openalexPro$edges))
+      sort(names(results_pro$edges))
     Output
       [1] "edge_type" "from"      "to"       
+
+# read_snowball with edge_type = 'core'
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = "core")
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "core")
     Output
       $nodes
       # A tibble: 46 x 54
@@ -121,9 +129,11 @@
       10 W3045921891 W2153579005 core     
       # i 35 more rows
       
+
+# read_snowball with edge_type = 'extended'
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = "extended")
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "extended")
     Output
       $nodes
       # A tibble: 46 x 54
@@ -196,9 +206,12 @@
       10 W2252212014 W1500530942 extended 
       # i 26 more rows
       
+
+# read_snowball with edge_type = c('extended', 'core')
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = c("extended", "core"))
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = c(
+        "extended", "core"))
     Output
       $nodes
       # A tibble: 46 x 54
@@ -271,9 +284,11 @@
       10 W2252212014 W1500530942 extended 
       # i 71 more rows
       
+
+# read_snowball with edge_type = 'outside'
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = "outside")
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "outside")
     Output
       $nodes
       # A tibble: 46 x 54
@@ -346,8 +361,11 @@
       10 W1500530942 W2070285512 outside  
       # i 1,592 more rows
       
+
+# pro_snowball nodes content (id / oa_input / relation)
+
     Code
-      print(dplyr::collect(dplyr::arrange(dplyr::select(results_openalexPro$nodes, id,
+      print(dplyr::collect(dplyr::arrange(dplyr::select(results_pro$nodes, id,
       oa_input, relation), oa_input, relation)), n = Inf)
     Output
       # A tibble: 46 x 3
@@ -399,9 +417,12 @@
       44 W7128689807 FALSE    citing  
       45 W3045921891 TRUE     keypaper
       46 W3046863325 TRUE     keypaper
+
+# pro_snowball edges content
+
     Code
-      print(dplyr::collect(dplyr::arrange(results_openalexPro$edges, edge_type, from,
-      to)), n = Inf)
+      print(dplyr::collect(dplyr::arrange(results_pro$edges, edge_type, from, to)),
+      n = Inf)
     Output
       # A tibble: 45 x 3
          from        to          edge_type
@@ -451,11 +472,17 @@
       43 W4415603090 W3046863325 core     
       44 W4416113766 W3046863325 core     
       45 W7128689807 W3046863325 core     
+
+# pro_snowball nodes match openalexR reference (zero diff)
+
     Code
       print(nodes_diff, n = Inf)
     Output
       # A tibble: 0 x 2
       # i 2 variables: id <chr>, oa_input <lgl>
+
+# pro_snowball edges match openalexR reference (zero diff)
+
     Code
       print(edges_diff, n = Inf)
     Output
