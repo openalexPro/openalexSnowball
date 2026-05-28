@@ -14,6 +14,8 @@
   natively).
 * Test helper: replaced removed `oap_apikey()` / `oap_mail()` with
   `Sys.getenv/setenv("openalexPro.apikey")`.
+* CI now depends on openalexPro ≥ 0.10.0 (with type-normalisation fixes from
+  PRs #59 and #60) installed from r-universe dev branch.
 
 # openalexSnowball 0.1.0
 
