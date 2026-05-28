@@ -1,142 +1,134 @@
 library(testthat)
-library(vdiffr)
 suppressPackageStartupMessages(library(dplyr))
+
+# ── Shared setup (run once per file) ─────────────────────────────────────────
+# VCR cassettes are active for the entire file scope so all test_that blocks
+# below can use the pre-built objects without re-running the API calls.
 
 output_dir <- file.path(tempdir(), "snowball")
 unlink(output_dir, recursive = TRUE, force = TRUE)
 
-test_that("pro_snowball", {
-  # openalexR
-  vcr::local_cassette("oa_snowball")
-  results_openalexR <- openalexR::oa_snowball(
-    identifier = c("W3045921891", "W3046863325"),
-    verbose = FALSE
-  )
+# Reference results from openalexR
+vcr::local_cassette("oa_snowball")
+results_openalexR <- openalexR::oa_snowball(
+  identifier = c("W3045921891", "W3046863325"),
+  verbose = FALSE
+)
+results_openalexR$nodes <- results_openalexR$nodes |>
+  dplyr::arrange(dplyr::desc(oa_input), id)
+results_openalexR$edges <- results_openalexR$edges |>
+  dplyr::arrange(from, to)
 
-  results_openalexR$nodes <- results_openalexR$nodes |>
-    dplyr::arrange(
-      dplyr::desc(oa_input),
-      id
-    )
+# Build the pro_snowball output once; all tests read from output_dir
+vcr::local_cassette("pro_snowball")
+output_dir <- pro_snowball(
+  identifier = c("W3045921891", "W3046863325"),
+  output = output_dir,
+  verbose = FALSE
+)
 
-  results_openalexR$edges <- results_openalexR$edges |>
-    dplyr::arrange(
-      from,
-      to
-    )
+# Load the snowball for reuse across tests
+results_pro <- read_snowball(
+  output_dir,
+  return_data = TRUE,
+  shorten_ids = TRUE,
+  edge_type = "core"
+)
 
-  # openalexPro
-  vcr::local_cassette("pro_snowball")
-  output_dir <- pro_snowball(
-    identifier = c("W3045921891", "W3046863325"),
-    output = output_dir,
-    verbose = FALSE
-  )
+# Diffs used in the correctness tests
+nodes_diff <- dplyr::anti_join(
+  results_pro$nodes |> dplyr::select(id, oa_input),
+  results_openalexR$nodes |> dplyr::select(id, oa_input),
+  by = dplyr::join_by(id, oa_input)
+)
+edges_diff <- dplyr::anti_join(
+  results_pro$edges |> dplyr::filter(edge_type == "core"),
+  results_openalexR$edges,
+  by = dplyr::join_by(from, to)
+)
 
-  results_openalexPro <- read_snowball(
-    file.path(output_dir),
-    return_data = TRUE,
-    shorten_ids = TRUE,
-    edge_type = "core"
-  )
+# ── Structure ─────────────────────────────────────────────────────────────────
 
-  # Comparison
+test_that("pro_snowball result has nodes and edges", {
+  expect_snapshot(names(results_pro))
+})
 
-  nodes_diff <- dplyr::anti_join(
-    results_openalexPro$nodes |> dplyr::select(id, oa_input),
-    results_openalexR$nodes |> dplyr::select(id, oa_input),
-    by = dplyr::join_by(id, oa_input)
-  )
-
-  edges_diff <- dplyr::anti_join(
-    results_openalexPro$edges |> dplyr::filter(edge_type == "core"),
-    results_openalexR$edges,
-    by = dplyr::join_by(from, to)
-  )
-
-  # Check that the output file contains the expected data structure
+test_that("pro_snowball nodes have expected shape", {
   expect_snapshot({
-    names(results_openalexPro)
+    nrow(results_pro$nodes)
+    sort(names(results_pro$nodes))
+  })
+})
 
-    nrow(results_openalexPro$nodes)
-    names(results_openalexPro$nodes) |>
-      sort()
+test_that("pro_snowball edges have expected shape", {
+  expect_snapshot({
+    nrow(results_pro$edges)
+    sort(names(results_pro$edges))
+  })
+})
 
-    nrow(results_openalexPro$edges)
-    names(results_openalexPro$edges) |>
-      sort()
+# ── read_snowball() edge_type variants ────────────────────────────────────────
 
-    read_snowball(
-      file.path(output_dir),
-      return_data = TRUE,
-      shorten_ids = TRUE,
-      edge_type = "core"
-    )
+test_that("read_snowball with edge_type = 'core'", {
+  expect_snapshot(
+    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
+                  edge_type = "core")
+  )
+})
 
-    read_snowball(
-      file.path(output_dir),
-      return_data = TRUE,
-      shorten_ids = TRUE,
-      edge_type = "extended"
-    )
+test_that("read_snowball with edge_type = 'extended'", {
+  expect_snapshot(
+    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
+                  edge_type = "extended")
+  )
+})
 
-    read_snowball(
-      file.path(output_dir),
-      return_data = TRUE,
-      shorten_ids = TRUE,
-      edge_type = c("extended", "core")
-    )
+test_that("read_snowball with edge_type = c('extended', 'core')", {
+  expect_snapshot(
+    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
+                  edge_type = c("extended", "core"))
+  )
+})
 
-    read_snowball(
-      file.path(output_dir),
-      return_data = TRUE,
-      shorten_ids = TRUE,
-      edge_type = "outside"
-    )
+test_that("read_snowball with edge_type = 'outside'", {
+  expect_snapshot(
+    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
+                  edge_type = "outside")
+  )
+})
 
-    results_openalexPro$nodes |>
+# ── Content ───────────────────────────────────────────────────────────────────
+
+test_that("pro_snowball nodes content (id / oa_input / relation)", {
+  expect_snapshot(
+    results_pro$nodes |>
       dplyr::select(id, oa_input, relation) |>
       dplyr::arrange(oa_input, relation) |>
       dplyr::collect() |>
       print(n = Inf)
+  )
+})
 
-    results_openalexPro$edges |>
+test_that("pro_snowball edges content", {
+  expect_snapshot(
+    results_pro$edges |>
       dplyr::arrange(edge_type, from, to) |>
       dplyr::collect() |>
       print(n = Inf)
-
-    print(nodes_diff, n = Inf)
-    print(edges_diff, n = Inf)
-  })
-
-  # Check nodes
-  expect_true(
-    nrow(nodes_diff) == 0
   )
-
-  # Check edges
-  expect_true(
-    nrow(edges_diff) == 0
-  )
-
-  # Check that the output file contains the expected data
-  # expect_snapshot_file(file.path(output_dir, "results_page_1.json"))
-
-  # Compare plot_snowball
-
-  # plot_pro <- plot_snowball(snowball = results_openalexPro)
-  # plot_r <- plot_snowball(snowball = results_openalexR)
-
-  # test_that("snowball plots have visually not changed", {
-  #   vdiffr::expect_doppelganger("Snowball-plot-Pro", plot_pro)
-  #   vdiffr::expect_doppelganger("Snowball-plot-R", plot_r)
-  # })
-
-  # Assert that both plots look the same by giving them the same label
-  # test_that("snowball plots are visually the same", {
-  #   vdiffr::expect_doppelganger("Snowball-identical-plot", plot_pro)
-  #   vdiffr::expect_doppelganger("Snowball-identical-plot", plot_r)
-  # })
 })
 
+# ── Correctness vs openalexR ──────────────────────────────────────────────────
+
+test_that("pro_snowball nodes match openalexR reference (zero diff)", {
+  expect_snapshot(print(nodes_diff, n = Inf))
+  expect_equal(nrow(nodes_diff), 0L)
+})
+
+test_that("pro_snowball edges match openalexR reference (zero diff)", {
+  expect_snapshot(print(edges_diff, n = Inf))
+  expect_equal(nrow(edges_diff), 0L)
+})
+
+# ── Teardown ──────────────────────────────────────────────────────────────────
 unlink(output_dir, recursive = TRUE, force = TRUE)

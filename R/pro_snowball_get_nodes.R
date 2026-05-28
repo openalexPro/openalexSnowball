@@ -12,9 +12,8 @@
 #'
 #' @export
 #'
-#' @importFrom duckdb duckdb duckdb_register_arrow
-#' @importFrom DBI dbConnect dbDisconnect dbExecute
-#' @importFrom arrow write_parquet
+#' @importFrom duckdb duckdb
+#' @importFrom DBI dbConnect dbDisconnect dbExecute dbGetQuery
 #'
 #' @md
 #'
@@ -59,10 +58,6 @@ pro_snowball_get_nodes <- function(
     try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
     add = TRUE
   )
-  paste0(
-    "INSTALL json; LOAD json; "
-  ) |>
-    DBI::dbExecute(conn = con)
 
   # fetching keypapers -----------------------------------------------------
 
@@ -81,26 +76,17 @@ pro_snowball_get_nodes <- function(
       entity = "works"
     )
   )
-  x <- openalexPro::pro_request(
+  openalexPro::pro_request(
     query_url = qu,
     output = file.path(output, "keypaper_json"),
     verbose = verbose,
     progress = verbose
-  )
-  x <- openalexPro::pro_request_jsonl(
-    input_json = x,
-    output = file.path(output, "keypaper_jsonl"),
-    add_columns = list(
-      oa_input = TRUE,
-      relation = "keypaper"
-    ),
-    verbose = verbose
-  )
-  openalexPro::pro_request_jsonl_parquet(
-    input_jsonl = x,
-    output = file.path(output, "keypaper"),
-    verbose = verbose
-  )
+  ) |>
+    openalexPro::pro_request_parquet(
+      output = file.path(output, "keypaper_parquet"),
+      add_columns = list(oa_input = "TRUE", relation = "keypaper"),
+      verbose = verbose
+    )
 
   # Getting keypaper ids as returned by OpenAlex ---------------------------
 
@@ -108,10 +94,10 @@ pro_snowball_get_nodes <- function(
     "
     SELECT
       id
-    FROM 
-      read_json_auto( '%s/**/*.json' )
+    FROM
+      read_parquet( '%s/**/*.parquet' )
     ",
-    file.path(output, "keypaper_jsonl")
+    file.path(output, "keypaper_parquet")
   ) |>
     DBI::dbGetQuery(conn = con) |>
     unlist() |>
@@ -136,18 +122,16 @@ pro_snowball_get_nodes <- function(
         verbose = verbose,
         progress = verbose
       ) |>
-      openalexPro::pro_request_jsonl(
-        output = file.path(output, "citing_jsonl"),
-        add_columns = list(
-          oa_input = FALSE,
-          relation = "citing"
-        ),
+      openalexPro::pro_request_parquet(
+        output = file.path(output, "citing_parquet"),
+        add_columns = list(oa_input = "FALSE", relation = "citing"),
         verbose = verbose
       )
   }
 
-  # fetching documents cited by the keypapers (outgoing - from: keypaper
-  # )-----------------------
+  # fetching documents cited by the keypapers (outgoing - from: keypaper)
+  # ----
+
   if (limit != "onlyCiting") {
     if (verbose) {
       message(
@@ -155,7 +139,7 @@ pro_snowball_get_nodes <- function(
       )
     }
 
-    cited_parquet <- openalexPro::pro_query(
+    openalexPro::pro_query(
       cited_by = keypaper_ids,
       entity = "works"
     ) |>
@@ -164,63 +148,59 @@ pro_snowball_get_nodes <- function(
         verbose = verbose,
         progress = verbose
       ) |>
-      openalexPro::pro_request_jsonl(
-        output = file.path(output, "cited_jsonl"),
-        add_columns = list(
-          oa_input = FALSE,
-          relation = "cited"
-        ),
+      openalexPro::pro_request_parquet(
+        output = file.path(output, "cited_parquet"),
+        add_columns = list(oa_input = "FALSE", relation = "cited"),
         verbose = verbose
       )
   }
-  # Combine individual parquet databases to nodes_parquet --------------------
 
-  json_sources <- c(file.path(output, "keypaper_jsonl", "**", "*.json"))
+  # Combine individual parquet files to nodes parquet ----------------------
 
-  cited_jsonl_dir <- file.path(output, "cited_jsonl")
+  parquet_sources <- c(file.path(output, "keypaper_parquet", "**", "*.parquet"))
+
+  cited_parquet_dir <- file.path(output, "cited_parquet")
   if (
-    dir.exists(cited_jsonl_dir) &&
+    dir.exists(cited_parquet_dir) &&
       length(list.files(
-        cited_jsonl_dir,
-        pattern = "\\.json$",
+        cited_parquet_dir,
+        pattern = "\\.parquet$",
         recursive = TRUE
-      )) >
-        0
+      )) > 0
   ) {
-    json_sources <- c(
-      json_sources,
-      file.path(output, "cited_jsonl", "**", "*.json")
+    parquet_sources <- c(
+      parquet_sources,
+      file.path(output, "cited_parquet", "**", "*.parquet")
     )
   }
 
-  citing_jsonl_dir <- file.path(output, "citing_jsonl")
+  citing_parquet_dir <- file.path(output, "citing_parquet")
   if (
-    dir.exists(citing_jsonl_dir) &&
+    dir.exists(citing_parquet_dir) &&
       length(list.files(
-        citing_jsonl_dir,
-        pattern = "\\.json$",
+        citing_parquet_dir,
+        pattern = "\\.parquet$",
         recursive = TRUE
-      )) >
-        0
+      )) > 0
   ) {
-    json_sources <- c(
-      json_sources,
-      file.path(output, "citing_jsonl", "**", "*.json")
+    parquet_sources <- c(
+      parquet_sources,
+      file.path(output, "citing_parquet", "**", "*.parquet")
     )
   }
 
-  json_sources_sql <- paste(
-    sprintf("'%s'", json_sources),
+  parquet_sources_sql <- paste(
+    sprintf("'%s'", parquet_sources),
     collapse = ",\n          "
   )
 
   sprintf(
     "
       COPY (
-        SELECT 
+        SELECT
           * REPLACE (CAST(oa_input AS BOOLEAN) AS oa_input)
-        FROM 
-        read_json_auto(
+        FROM
+        read_parquet(
           [%s],
           union_by_name = true
         )
@@ -228,17 +208,19 @@ pro_snowball_get_nodes <- function(
         '%s'
         (FORMAT PARQUET, COMPRESSION SNAPPY, APPEND, PARTITION_BY 'relation')
       ",
-    json_sources_sql,
+    parquet_sources_sql,
     file.path(output, "nodes")
   ) |>
     DBI::dbExecute(conn = con)
 
   # Cleanup intermediate directories --------------------------------------
 
-  unlink(file.path(output, "cited_json"), recursive = TRUE)
-  unlink(file.path(output, "cited_jsonl"), recursive = TRUE)
+  unlink(file.path(output, "keypaper_json"), recursive = TRUE)
+  unlink(file.path(output, "keypaper_parquet"), recursive = TRUE)
   unlink(file.path(output, "citing_json"), recursive = TRUE)
-  unlink(file.path(output, "citing_jsonl"), recursive = TRUE)
+  unlink(file.path(output, "citing_parquet"), recursive = TRUE)
+  unlink(file.path(output, "cited_json"), recursive = TRUE)
+  unlink(file.path(output, "cited_parquet"), recursive = TRUE)
 
   # Return path to nodes ------------------------------------------------
 

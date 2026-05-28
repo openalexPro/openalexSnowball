@@ -1,57 +1,65 @@
-# pro_snowball
+# pro_snowball result has nodes and edges
 
     Code
-      names(results_openalexPro)
+      names(results_pro)
     Output
       [1] "nodes" "edges"
+
+# pro_snowball nodes have expected shape
+
     Code
-      nrow(results_openalexPro$nodes)
+      nrow(results_pro$nodes)
     Output
       [1] 46
     Code
-      sort(names(results_openalexPro$nodes))
+      sort(names(results_pro$nodes))
     Output
-       [1] "abstract"                       "apc_list"                      
-       [3] "apc_paid"                       "authorships"                   
-       [5] "awards"                         "best_oa_location"              
-       [7] "biblio"                         "citation"                      
-       [9] "citation_normalized_percentile" "cited_by_count"                
-      [11] "cited_by_percentile_year"       "concepts"                      
-      [13] "content_urls"                   "corresponding_author_ids"      
-      [15] "corresponding_institution_ids"  "countries_distinct_count"      
-      [17] "counts_by_year"                 "created_date"                  
-      [19] "display_name"                   "doi"                           
-      [21] "funders"                        "fwci"                          
-      [23] "has_content"                    "has_fulltext"                  
-      [25] "id"                             "ids"                           
-      [27] "indexed_in"                     "institutions"                  
-      [29] "institutions_distinct_count"    "is_paratext"                   
-      [31] "is_retracted"                   "is_xpac"                       
-      [33] "keywords"                       "language"                      
-      [35] "locations"                      "locations_count"               
-      [37] "mesh"                           "oa_input"                      
-      [39] "open_access"                    "page"                          
-      [41] "primary_location"               "primary_topic"                 
-      [43] "publication_date"               "publication_year"              
-      [45] "referenced_works"               "referenced_works_count"        
-      [47] "related_works"                  "relation"                      
-      [49] "sustainable_development_goals"  "title"                         
-      [51] "topics"                         "type"                          
-      [53] "updated_date"                  
+       [1] "abstract"                       "abstract_inverted_index"       
+       [3] "apc_list"                       "apc_paid"                      
+       [5] "authorships"                    "awards"                        
+       [7] "best_oa_location"               "biblio"                        
+       [9] "citation"                       "citation_normalized_percentile"
+      [11] "cited_by_count"                 "cited_by_percentile_year"      
+      [13] "concepts"                       "content_urls"                  
+      [15] "corresponding_author_ids"       "corresponding_institution_ids" 
+      [17] "countries_distinct_count"       "counts_by_year"                
+      [19] "created_date"                   "display_name"                  
+      [21] "doi"                            "funders"                       
+      [23] "fwci"                           "has_content"                   
+      [25] "has_fulltext"                   "id"                            
+      [27] "ids"                            "indexed_in"                    
+      [29] "institutions"                   "institutions_distinct_count"   
+      [31] "is_paratext"                    "is_retracted"                  
+      [33] "is_xpac"                        "keywords"                      
+      [35] "language"                       "locations"                     
+      [37] "locations_count"                "mesh"                          
+      [39] "oa_input"                       "open_access"                   
+      [41] "page"                           "primary_location"              
+      [43] "primary_topic"                  "publication_date"              
+      [45] "publication_year"               "referenced_works"              
+      [47] "referenced_works_count"         "related_works"                 
+      [49] "relation"                       "sustainable_development_goals" 
+      [51] "title"                          "topics"                        
+      [53] "type"                           "updated_date"                  
+
+# pro_snowball edges have expected shape
+
     Code
-      nrow(results_openalexPro$edges)
+      nrow(results_pro$edges)
     Output
       [1] 45
     Code
-      sort(names(results_openalexPro$edges))
+      sort(names(results_pro$edges))
     Output
       [1] "edge_type" "from"      "to"       
+
+# read_snowball with edge_type = 'core'
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = "core")
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "core")
     Output
       $nodes
-      # A tibble: 46 x 53
+      # A tibble: 46 x 54
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -65,8 +73,8 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 49 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
@@ -121,12 +129,14 @@
       10 W3045921891 W2153579005 core     
       # i 35 more rows
       
+
+# read_snowball with edge_type = 'extended'
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = "extended")
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "extended")
     Output
       $nodes
-      # A tibble: 46 x 53
+      # A tibble: 46 x 54
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -140,8 +150,8 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 49 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
@@ -196,12 +206,15 @@
       10 W2252212014 W1500530942 extended 
       # i 26 more rows
       
+
+# read_snowball with edge_type = c('extended', 'core')
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = c("extended", "core"))
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = c(
+        "extended", "core"))
     Output
       $nodes
-      # A tibble: 46 x 53
+      # A tibble: 46 x 54
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -215,8 +228,8 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 49 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
@@ -271,12 +284,14 @@
       10 W2252212014 W1500530942 extended 
       # i 71 more rows
       
+
+# read_snowball with edge_type = 'outside'
+
     Code
-      read_snowball(file.path(output_dir), return_data = TRUE, shorten_ids = TRUE,
-      edge_type = "outside")
+      read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "outside")
     Output
       $nodes
-      # A tibble: 46 x 53
+      # A tibble: 46 x 54
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -290,8 +305,8 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 49 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
-      #   primary_location <tibble[,12]>, type <chr>, indexed_in <list<character>>,
+      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
         tbl_df<
@@ -346,8 +361,11 @@
       10 W1500530942 W2070285512 outside  
       # i 1,592 more rows
       
+
+# pro_snowball nodes content (id / oa_input / relation)
+
     Code
-      print(dplyr::collect(dplyr::arrange(dplyr::select(results_openalexPro$nodes, id,
+      print(dplyr::collect(dplyr::arrange(dplyr::select(results_pro$nodes, id,
       oa_input, relation), oa_input, relation)), n = Inf)
     Output
       # A tibble: 46 x 3
@@ -399,9 +417,12 @@
       44 W7128689807 FALSE    citing  
       45 W3045921891 TRUE     keypaper
       46 W3046863325 TRUE     keypaper
+
+# pro_snowball edges content
+
     Code
-      print(dplyr::collect(dplyr::arrange(results_openalexPro$edges, edge_type, from,
-      to)), n = Inf)
+      print(dplyr::collect(dplyr::arrange(results_pro$edges, edge_type, from, to)),
+      n = Inf)
     Output
       # A tibble: 45 x 3
          from        to          edge_type
@@ -451,11 +472,17 @@
       43 W4415603090 W3046863325 core     
       44 W4416113766 W3046863325 core     
       45 W7128689807 W3046863325 core     
+
+# pro_snowball nodes match openalexR reference (zero diff)
+
     Code
       print(nodes_diff, n = Inf)
     Output
       # A tibble: 0 x 2
       # i 2 variables: id <chr>, oa_input <lgl>
+
+# pro_snowball edges match openalexR reference (zero diff)
+
     Code
       print(edges_diff, n = Inf)
     Output
