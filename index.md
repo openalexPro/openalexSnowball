@@ -44,14 +44,12 @@ complete responses including metadata are saved, one could end here and
 use custom made code to further process the responses, i.e. ingest it
 into a database.
 
-In a second step
-([`openalexPro::pro_request_jsonl()`](https://rkrug.github.io/openalexPro/reference/pro_request_jsonl.html)),
-the json files are processed on a per file basis using the `jq`
-command-line json processor. In this step the abstract text is
-re-constructed, a citation string for each work is generated, and
-optionally add a `page` field is added. It writes the resulting json
-file as a newline-delimited JSON (.jsonl), suitable for further
-processing using `arrow` or DuckDB.
+In a second step (`openalexPro::pro_request_jsonl()`), the json files
+are processed on a per file basis using the `jq` command-line json
+processor. In this step the abstract text is re-constructed, a citation
+string for each work is generated, and optionally add a `page` field is
+added. It writes the resulting json file as a newline-delimited JSON
+(.jsonl), suitable for further processing using `arrow` or DuckDB.
 
 Int the third (and final) step
 ([`openalexPro::pro_request_jsonl_parquet()`](https://rkrug.github.io/openalexPro/reference/pro_request_jsonl_parquet.html))
