@@ -31,7 +31,7 @@ read_snowball <- function(
   snowball = NULL,
   edge_type = c("core", "extended", "outside"),
   return_data = FALSE,
-  shorten_ids = TRUE
+  shorten_ids = FALSE
 ) {
   if (is.null(snowball)) {
     stop("Directory `snowball` missing!")
