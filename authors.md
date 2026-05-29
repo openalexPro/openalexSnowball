@@ -7,7 +7,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/openalexPro/openalexSnowball/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/openalexPro/openalexSnowball/blob/v0.1.3/DESCRIPTION)
 
 Krug RM (2026). *openalexSnowball: Snowball searches for OpenAlex using
 the openalexPro pipeline*. R package version 0.1.1,
