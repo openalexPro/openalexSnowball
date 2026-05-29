@@ -4,13 +4,13 @@ date: today
 author: Rainer M Krug
 format: gfm
 ---
-[![name status badge](https://rkrug.r-universe.dev/badges/:name)](https://rkrug.r-universe.dev/)
+[![name status badge](https://openalexpro.r-universe.dev/badges/:name)](https://openalexpro.r-universe.dev/)
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17453180.svg)](https://doi.org/10.5281/zenodo.17453180)
 
-[![openalexPro status badge](https://rkrug.r-universe.dev/openalexPro/badges/version)](https://rkrug.r-universe.dev/openalexPro)
+[![openalexPro status badge](https://openalexpro.r-universe.dev/openalexPro/badges/version)](https://openalexpro.r-universe.dev/openalexPro)
 
-[![Codecov test coverage](https://codecov.io/gh/rkrug/openalexPro/graph/badge.svg)](https://app.codecov.io/gh/rkrug/openalexPro)
+[![Codecov test coverage](https://codecov.io/gh/openalexPro/openalexPro/graph/badge.svg)](https://app.codecov.io/gh/openalexPro/openalexPro)
 
 # Disclaimer
 
@@ -46,10 +46,10 @@ The final format which is used in this package to save the retrieved data is the
 
 ## Installation
 
-The latest "stable" version is available via [r-universe](https://rkrug.r-universe.dev/openalexPro)
+The latest "stable" version is available via [r-universe](https://openalexpro.r-universe.dev/openalexPro)
 
 ```r
-install.packages('openalexPro', repos = c('https://rkrug.r-universe.dev', 'https://cloud.r-project.org'))
+install.packages('openalexPro', repos = c('https://openalexpro.r-universe.dev', 'https://cloud.r-project.org'))
 ```
 
 The "development" version can be installed from github.
@@ -57,7 +57,7 @@ The "development" version can be installed from github.
 Unless you need bleeding edge functionality and can deal with changing function definitions, or whant to test new functionality, is this not recommended.
 
 ```r
-remotes::install_github("rkrug/openalexPro", ref = "dev")
+remotes::install_github("openalexPro/openalexPro", ref = "dev")
 ```
 
 ## Basic Workflow for Searches
@@ -143,5 +143,5 @@ The `read_corpus()` function reads the corpus either as a arrow `Dataset` object
 ## Snowball Searches
 
 Snowball search functionality has moved to the separate
-[`openalexSnowball`](https://github.com/rkrug/openalexSnowball) package, which
+[`openalexSnowball`](https://github.com/openalexPro/openalexSnowball) package, which
 depends on `openalexPro` for the underlying pipeline.
