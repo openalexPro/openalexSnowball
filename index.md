@@ -3,10 +3,10 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17453180.svg)](https://doi.org/10.5281/zenodo.17453180)
 
 [![openalexPro status
-badge](https://rkrug.r-universe.dev/openalexPro/badges/version)](https://rkrug.r-universe.dev/openalexPro)
+badge](https://openalexpro.r-universe.dev/openalexPro/badges/version)](https://openalexpro.r-universe.dev/openalexPro)
 
 [![Codecov test
-coverage](https://codecov.io/gh/rkrug/openalexPro/graph/badge.svg)](https://app.codecov.io/gh/rkrug/openalexPro)
+coverage](https://codecov.io/gh/openalexPro/openalexPro/graph/badge.svg)](https://app.codecov.io/gh/openalexPro/openalexPro)
 
 # LLM Usage Disclosure
 
@@ -36,7 +36,7 @@ The retrieval of works and the initial processing / preparation can be
 split into these three steps:
 
 In a first step
-([`openalexPro::pro_request()`](https://rkrug.github.io/openalexPro/reference/pro_request.html)),
+([`openalexPro::pro_request()`](https://openalexpro.github.io/openalexPro/reference/pro_request.html)),
 each page from the API call is saved into an individual json file as
 returned by the API. The number of retrieved records is effectively only
 limited by the space on the drive where the json files are saved. As the
@@ -52,7 +52,7 @@ added. It writes the resulting json file as a newline-delimited JSON
 (.jsonl), suitable for further processing using `arrow` or DuckDB.
 
 Int the third (and final) step
-([`openalexPro::pro_request_jsonl_parquet()`](https://rkrug.github.io/openalexPro/reference/pro_request_jsonl_parquet.html))
+([`openalexPro::pro_request_jsonl_parquet()`](https://openalexpro.github.io/openalexPro/reference/pro_request_jsonl_parquet.html))
 converts the jsonl files into a parquet database partitioned by `page`
 using the `duckdb` package. Again, as the processing is done per page as
 well, the conversion is not limited by memory.
@@ -82,18 +82,18 @@ into memory (see the section on [dplyr and
 arrow](https://r4ds.hadley.nz/arrow.html#using-dplyr-with-arrow) as well
 more general the [arrow chapter](https://r4ds.hadley.nz/arrow.html) in
 Hadleys Wickhams [R for Data Science (2e)
-book](https://rkrug.github.io/openalexSnowball/)<https://r4ds.hadley.nz>).
+book](https://openalexpro.github.io/openalexSnowball/)<https://r4ds.hadley.nz>).
 
 # Quickstart
 
 ## Installation
 
 The latest “stable” version is available via
-[r-universe](https://rkrug.r-universe.dev/openalexPro)
+[r-universe](https://openalexpro.r-universe.dev/openalexPro)
 
 ``` r
 
-install.packages('openalexPro', repos = c('https://rkrug.r-universe.dev', 'https://cloud.r-project.org'))
+install.packages('openalexPro', repos = c('https://openalexpro.r-universe.dev', 'https://cloud.r-project.org'))
 ```
 
 The “development” version can be installed from github. **This is
@@ -103,7 +103,7 @@ functionality, is this not recommended.
 
 ``` r
 
-remotes::install_github("rkrug/openalexPro", ref = "dev")
+remotes::install_github("openalexPro/openalexPro", ref = "dev")
 ```
 
 ## Basic Workflow for Searches
@@ -209,7 +209,7 @@ openalexPro::pro_request_jsonl_parquet(
 ### Convenience Function to Read the Retrieved Data (`openalexPro::read_corpus()`)
 
 The
-[`read_corpus()`](https://rkrug.github.io/openalexPro/reference/read_corpus.html)
+[`read_corpus()`](https://openalexpro.github.io/openalexPro/reference/read_corpus.html)
 function reads the corpus either as a arrow `Dataset` object if
 `return_data = FALSE`, which is essentially metadata to the dataset, or
 a `data.frame`, i.e. a data table, if `return_data = TRUE`, in which
@@ -218,5 +218,5 @@ case the whole dataset is loaded into memory.
 ## Snowball Searches
 
 Snowball search functionality has moved to the separate
-[`openalexSnowball`](https://github.com/rkrug/openalexSnowball) package,
-which depends on `openalexPro` for the underlying pipeline.
+[`openalexSnowball`](https://github.com/openalexPro/openalexSnowball)
+package, which depends on `openalexPro` for the underlying pipeline.

@@ -57,24 +57,24 @@ devtools::document()
 
 ### Core Pipeline (4 functions)
 
-1.  **[`pro_snowball()`](https://rkrug.github.io/openalexSnowball/reference/pro_snowball.md)**
+1.  **[`pro_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/pro_snowball.md)**
     — Top-level orchestrator. Accepts `identifier` (OpenAlex IDs) or
     `doi` (mutually exclusive). Returns path to the output directory.
 
-2.  **[`pro_snowball_get_nodes()`](https://rkrug.github.io/openalexSnowball/reference/pro_snowball_get_nodes.md)**
+2.  **[`pro_snowball_get_nodes()`](https://openalexpro.github.io/openalexSnowball/reference/pro_snowball_get_nodes.md)**
     — Phase 1: Retrieves keypapers + their citing/cited papers from the
     OpenAlex API via
-    [`openalexPro::pro_query()`](https://rkrug.github.io/openalexPro/reference/pro_query.html).
+    [`openalexPro::pro_query()`](https://openalexpro.github.io/openalexPro/reference/pro_query.html).
     Writes partitioned parquet at `output/nodes/` with a `relation`
     column (`keypaper`, `citing`, `cited`). Each retrieval stage goes
     through: API → JSON files → JSONL → Parquet.
 
-3.  **[`pro_snowball_extract_edges()`](https://rkrug.github.io/openalexSnowball/reference/pro_snowball_extract_edges.md)**
+3.  **[`pro_snowball_extract_edges()`](https://openalexpro.github.io/openalexSnowball/reference/pro_snowball_extract_edges.md)**
     — Phase 2: Loads the nodes parquet into DuckDB, executes
     `inst/extract_edges.sql`, and writes partitioned parquet at
     `output/edges/` with an `edge_type` column.
 
-4.  **[`read_snowball()`](https://rkrug.github.io/openalexSnowball/reference/read_snowball.md)**
+4.  **[`read_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/read_snowball.md)**
     — Reads a completed snowball result directory; returns a list with
     `nodes` and `edges` as either Arrow Datasets (default, on-disk) or
     tibbles (`return_data = TRUE`). Supports filtering by `edge_type`.

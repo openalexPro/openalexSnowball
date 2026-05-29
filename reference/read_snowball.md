@@ -20,7 +20,7 @@ read_snowball(
 - snowball:
 
   The directory of the Parquet files as poppulater by
-  [`pro_snowball()`](https://rkrug.github.io/openalexSnowball/reference/pro_snowball.md).
+  [`pro_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/pro_snowball.md).
 
 - edge_type:
 

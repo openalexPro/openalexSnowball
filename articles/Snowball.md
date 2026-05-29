@@ -7,7 +7,7 @@
 papers and follows citation links to collect cited and citing works.
 Results are stored on disk as parquet datasets and can be loaded back
 into R using
-[`read_snowball()`](https://rkrug.github.io/openalexSnowball/reference/read_snowball.md).
+[`read_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/read_snowball.md).
 
 ## 2 Basic workflow
 
@@ -40,7 +40,7 @@ pro_snowball(
 ## 3 Reading results
 
 Use
-[`read_snowball()`](https://rkrug.github.io/openalexSnowball/reference/read_snowball.md)
+[`read_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/read_snowball.md)
 to load nodes and edges. The output can be an Arrow Dataset (default) or
 collected into memory as tibbles.
 
