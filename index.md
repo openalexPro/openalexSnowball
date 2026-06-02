@@ -8,9 +8,6 @@ badge](https://openalexpro.r-universe.dev/badges/:name)](https://openalexpro.r-u
 [![openalexPro status
 badge](https://openalexpro.r-universe.dev/openalexPro/badges/version)](https://openalexpro.r-universe.dev/openalexPro)
 
-[![Codecov test
-coverage](https://codecov.io/gh/openalexPro/openalexPro/graph/badge.svg)](https://app.codecov.io/gh/openalexPro/openalexPro)
-
 # LLM Usage Disclosure
 
 Code and documentation in this project have been generated with the
