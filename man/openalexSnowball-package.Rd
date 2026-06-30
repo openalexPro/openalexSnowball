@@ -11,9 +11,9 @@ Perform snowball searches on the OpenAlex citation graph using openalexPro's on-
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/rkrug/openalexSnowball}
-  \item \url{https://rkrug.github.io/openalexSnowball/}
-  \item Report bugs at \url{https://github.com/rkrug/openalexSnowball/issues}
+  \item \url{https://github.com/openalexPro/openalexSnowball}
+  \item \url{https://openalexpro.github.io/openalexSnowball/}
+  \item Report bugs at \url{https://github.com/openalexPro/openalexSnowball/issues}
 }
 
 }

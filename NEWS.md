@@ -1,8 +1,8 @@
-# openalexSnowball (development)
+# openalexSnowball 0.10.1
 
 ## Breaking Changes
 
-* Minimum `openalexPro` version bumped from `>= 0.4.0` to `>= 0.4.2`.
+* Minimum `openalexPro` version bumped from `>= 0.4.0` to `>= 0.10.2`.
 
 ## Bug Fixes
 
@@ -14,7 +14,7 @@
   natively).
 * Test helper: replaced removed `oap_apikey()` / `oap_mail()` with
   `Sys.getenv/setenv("openalexPro.apikey")`.
-* CI now depends on openalexPro ≥ 0.10.0 (with type-normalisation fixes from
+* CI now depends on openalexPro ≥ 0.10.2 (with type-normalisation fixes from
   PRs #59 and #60) installed from r-universe dev branch.
 
 # openalexSnowball 0.1.0
