@@ -211,3 +211,51 @@
 
   normalizePath(file.path(output, "nodes"))
 }
+
+#' Record how a snowball was produced
+#'
+#' Without this an offline snowball is indistinguishable from an online one on
+#' disk, and the snapshot vintage its results are frozen at is invisible. That
+#' is a reproducibility problem rather than a nicety: a review built from
+#' offline results should be able to state which snapshot it used.
+#'
+#' @param output Snowball output directory.
+#' @param mode `"api"` or `"snapshot"`.
+#' @param snapshot Snapshot path, or `NULL`.
+#' @param keypapers Resolved keypaper ids.
+#' @param limit The `limit` in force.
+#' @noRd
+.write_snowball_meta <- function(output, mode, snapshot, keypapers, limit) {
+  built_at <- NA_character_
+  if (!is.null(snapshot)) {
+    meta_file <- file.path(
+      if (dir.exists(file.path(snapshot, "parquet"))) {
+        file.path(snapshot, "parquet")
+      } else {
+        snapshot
+      },
+      "works_cite_idx", "_index_meta.parquet"
+    )
+    if (file.exists(meta_file)) {
+      built_at <- as.character(
+        as.data.frame(arrow::read_parquet(meta_file))$built_at[[1L]]
+      )
+    }
+  }
+
+  arrow::write_parquet(
+    data.frame(
+      mode              = mode,
+      snapshot_root     = if (is.null(snapshot)) NA_character_ else snapshot,
+      snapshot_built_at = built_at,
+      keypapers         = paste(keypapers, collapse = ","),
+      limit             = limit,
+      created_at        = as.character(Sys.time()),
+      openalexSnowball  = as.character(utils::packageVersion("openalexSnowball")),
+      openalexPro       = as.character(utils::packageVersion("openalexPro")),
+      stringsAsFactors  = FALSE
+    ),
+    file.path(output, "snowball_meta.parquet")
+  )
+  invisible(NULL)
+}

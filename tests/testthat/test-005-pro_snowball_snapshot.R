@@ -12,8 +12,9 @@ test_that("snapshot mode produces the same construct as the API path", {
                       output = out, verbose = FALSE)
 
   expect_equal(res, normalizePath(out))
-  # nodes/ and edges/ and nothing else: all intermediates are cleaned up
-  expect_setequal(list.files(res), c("nodes", "edges"))
+  # nodes/, edges/ and the provenance sidecar; all intermediates cleaned up
+  expect_setequal(list.files(res),
+                  c("nodes", "edges", "snowball_meta.parquet"))
 
   expect_setequal(
     list.files(file.path(res, "nodes")),
@@ -151,4 +152,26 @@ test_that("a missing citation index names the builder that creates it", {
                  output = out, verbose = FALSE),
     "build_citation_index"
   )
+})
+
+
+test_that("provenance records the mode and the snapshot vintage", {
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+  res <- pro_snowball(identifier = f$ids[1], snapshot = f$root, output = out,
+                      verbose = FALSE)
+
+  # opt-in: the default shape is unchanged
+  expect_named(read_snowball(res, return_data = TRUE), c("nodes", "edges"))
+
+  sb <- read_snowball(res, return_data = TRUE, meta = TRUE)
+  expect_true("meta" %in% names(sb))
+  expect_equal(sb$meta$mode, "snapshot")
+  expect_equal(sb$meta$snapshot_root, f$root)
+  # the vintage of the index the results are frozen at
+  expect_false(is.na(sb$meta$snapshot_built_at))
+  expect_match(sb$meta$keypapers, f$ids[1])
+
+  # $nodes and $edges keep their positions
+  expect_equal(names(sb)[1:2], c("nodes", "edges"))
 })

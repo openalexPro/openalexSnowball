@@ -42,6 +42,18 @@
   works than the limit. A heavily cited work can have hundreds of thousands of
   citers, and extracting records for all of them would read most of the corpus.
 
+* **Provenance.** Every snowball now writes `snowball_meta.parquet` recording
+  how it was produced: `api` or `snapshot`, the snapshot path and the vintage
+  of the citation index the results are frozen at, the resolved keypapers, and
+  package versions. Without it an offline snowball is indistinguishable from an
+  online one on disk, which matters if results are cited in published work.
+
+  `read_snowball(meta = TRUE)` returns it as a third list element. It is
+  **opt-in**: the sidecar carries a wall-clock `created_at`, so returning it by
+  default would make any snapshot test of the returned object unstable, and
+  would change the return shape for existing callers. The default remains
+  `list(nodes, edges)`.
+
 ## Internal
 
 * `pro_snowball_get_nodes()` split into `.nodes_from_api()`,

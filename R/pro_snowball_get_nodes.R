@@ -114,6 +114,14 @@ pro_snowball_get_nodes <- function(
                          max_results = max_results)
   }
 
+  .write_snowball_meta(
+    output,
+    mode      = if (is.null(snapshot)) "api" else "snapshot",
+    snapshot  = snapshot,
+    keypapers = keypaper_ids,
+    limit     = limit
+  )
+
   # Combine individual parquet files to nodes parquet ----------------------
 
   .assemble_nodes(output, con = con, verbose = verbose)
