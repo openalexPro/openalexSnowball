@@ -8,6 +8,8 @@ tibble/data frame.}
 pro_snowball(
   identifier = NULL,
   doi = NULL,
+  snapshot = NULL,
+  max_results = 100000L,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -16,6 +18,28 @@ pro_snowball(
 \item{identifier}{Character vector of openalex identifiers.}
 
 \item{doi}{Character vector of dois.}
+
+\item{snapshot}{Path to a local OpenAlex snapshot (either a root directory
+containing \verb{parquet/}, or the \verb{parquet/} directory itself). When supplied,
+the whole snowball is built \strong{offline} from the snapshot instead of the
+OpenAlex API; when \code{NULL} (the default) behaviour is unchanged.
+
+Snapshot mode requires the indexes built by
+\code{openalexSnapshot::build_corpus_index()} and
+\code{openalexSnapshot::build_citation_index()}, plus
+\code{openalexSnapshot::build_doi_index()} if keypapers are given as DOIs.
+
+The output construct is identical -- \verb{nodes/} and \verb{edges/} partitioned the
+same way, readable by \code{\link[=read_snowball]{read_snowball()}} -- but the \strong{node columns differ},
+because snapshot records are not API records. Snapshot nodes carry
+whatever the works corpus holds plus \code{oa_input} and \code{relation}; there is no
+\code{page} column, which is an API pagination artefact. Results are also frozen
+at the snapshot's vintage rather than live.}
+
+\item{max_results}{Snapshot mode only: refuse to expand a keypaper with more
+citing works than this. A heavily cited work can have hundreds of thousands
+of citers, and extracting records for all of them would read most of the
+corpus.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

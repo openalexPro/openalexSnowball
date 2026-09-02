@@ -13,6 +13,7 @@ Depends:
     R (>= 4.1.1)
 Imports:
     openalexPro (>= 0.10.5),
+    openalexSnapshot (>= 0.1.0),
     arrow,
     DBI,
     dplyr,

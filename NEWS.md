@@ -1,3 +1,62 @@
+# openalexSnowball 0.11.0
+
+## New: offline snowball searches
+
+* **`pro_snowball()` gains a `snapshot` argument.** When given a path to a
+  local OpenAlex snapshot the whole snowball is built offline; when `NULL`
+  (the default) behaviour is byte-identical to before. There is no separate
+  function -- one entry point, two backends.
+
+  ```r
+  # unchanged: live API
+  pro_snowball(identifier = "W3045921891")
+
+  # offline, reproducible, no network
+  pro_snowball(identifier = "W3045921891", snapshot = "~/openalex/parquet")
+  ```
+
+  The path may be either a root directory containing `parquet/` or the
+  `parquet/` directory itself. Keypapers may be OpenAlex IDs or DOIs, with or
+  without a resolver prefix, mixed freely.
+
+  Requires `openalexSnapshot::build_corpus_index()` and
+  `build_citation_index()`, plus `build_doi_index()` for DOI keypapers.
+
+* **The output construct is unchanged** -- `nodes/relation=` and
+  `edges/edge_type=` partitioned identically, and [read_snowball()] reads it
+  without modification.
+
+  **The node columns are not.** Snapshot records are not API records, so
+  snapshot nodes carry whatever the works corpus holds plus `oa_input` and
+  `relation`. In particular there is no `page` column, which is an API
+  pagination artefact with no snapshot analogue; it is deliberately absent
+  rather than faked. Offline results are also frozen at the snapshot's vintage
+  rather than live.
+
+* Keypapers that resolve but are **absent from the snapshot** now warn and are
+  dropped; if none are present, that is an error. Previously such a snowball
+  would have been built with no seed, silently changing the core/extended edge
+  classification.
+
+* `max_results` (snapshot mode) refuses to expand a keypaper with more citing
+  works than the limit. A heavily cited work can have hundreds of thousands of
+  citers, and extracting records for all of them would read most of the corpus.
+
+## Internal
+
+* `pro_snowball_get_nodes()` split into `.nodes_from_api()`,
+  `.nodes_from_snapshot()` and a shared `.assemble_nodes()`. Only the fetch
+  differs between the two paths; the union COPY,
+  `pro_snowball_extract_edges()` and `read_snowball()` were already generic.
+
+* `inst/extract_edges.sql` is reused **unmodified**. Its `UNLIST()` needs a
+  list type, and the legacy snapshot corpus stores `referenced_works` as a JSON
+  string, so `.assemble_nodes()` normalises the column at node-write time
+  instead. That keeps the SQL a static readable artifact and makes the offline
+  node schema more API-compatible, not less.
+
+* `openalexSnapshot (>= 0.1.0)` added to Imports.
+
 # openalexSnowball 0.10.1
 
 ## Breaking Changes

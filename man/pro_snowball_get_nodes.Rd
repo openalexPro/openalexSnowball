@@ -8,6 +8,8 @@ pro_snowball_get_nodes(
   identifier = NULL,
   doi = NULL,
   limit = NULL,
+  snapshot = NULL,
+  max_results = 100000L,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -20,6 +22,15 @@ pro_snowball_get_nodes(
 \item{limit}{If \code{citedOnly} only works cited by the keypaper are retrieved,
 \code{citingOnly} retrieves only works citing the keypaper. Default: \code{NULL}
 where all will be retrieved. 'none' is equal to \code{NULL}}
+
+\item{snapshot}{Path to a local OpenAlex snapshot (either a root directory
+containing \verb{parquet/}, or the \verb{parquet/} directory itself). When supplied,
+nodes are gathered offline from the snapshot instead of the OpenAlex API.
+Requires the indexes built by \code{openalexSnapshot::build_corpus_index()} and
+\code{build_citation_index()}. Default \code{NULL} (use the API).}
+
+\item{max_results}{Snapshot mode only: refuse to expand a keypaper with more
+citing works than this. See \code{openalexSnapshot::get_citing()}.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 
