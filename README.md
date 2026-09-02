@@ -1,3 +1,8 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20448982.svg)](https://doi.org/10.5281/zenodo.20448982)
+[![Lifecycle: maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html)
+[![License: GPL-2+](https://img.shields.io/badge/License-GPL%20%3E%3D%202-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
+[![Codecov](https://codecov.io/gh/openalexPro/openalexSnowball/graph/badge.svg)](https://app.codecov.io/gh/openalexPro/openalexSnowball)
+
 ---
 title: "openalexPro README"
 date: today
@@ -10,7 +15,6 @@ format: gfm
 
 [![openalexPro status badge](https://openalexpro.r-universe.dev/openalexPro/badges/version)](https://openalexpro.r-universe.dev/openalexPro)
 
-[![Codecov test coverage](https://codecov.io/gh/openalexPro/openalexPro/graph/badge.svg)](https://app.codecov.io/gh/openalexPro/openalexPro)
 
 # Disclaimer
 

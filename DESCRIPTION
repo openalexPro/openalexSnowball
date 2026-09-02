@@ -6,7 +6,7 @@ Author: Rainer M Krug
 Maintainer: Rainer M Krug <Rainer@krugs.de>
 Description: Perform snowball searches on the OpenAlex citation graph using
     openalexPro's on-disk processing pipeline and store results in Parquet.
-URL: https://github.com/openalexPro/openalexSnowball, https://openalexpro.github.io/openalexSnowball/
+URL: https://github.com/openalexPro/openalexSnowball, https://openalexpro.github.io/openalexSnowball/, https://doi.org/10.5281/zenodo.20448982
 BugReports: https://github.com/openalexPro/openalexSnowball/issues
 License: GPL (>= 2)
 Depends:
