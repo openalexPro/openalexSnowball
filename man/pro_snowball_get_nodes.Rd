@@ -10,6 +10,8 @@ pro_snowball_get_nodes(
   limit = NULL,
   snapshot = NULL,
   max_results = 100000L,
+  workers = 1L,
+  chunk_limit = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -31,6 +33,11 @@ Requires the indexes built by \code{openalexSnapshot::build_corpus_index()} and
 
 \item{max_results}{Snapshot mode only: refuse to expand a keypaper with more
 citing works than this. See \code{openalexSnapshot::get_citing()}.}
+
+\item{workers}{Number of parallel workers. Default \code{1} (sequential).}
+
+\item{chunk_limit}{API mode only: ids per filter URL. \code{NULL} (default)
+derives one from \code{workers}; see \code{pro_snowball()}.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

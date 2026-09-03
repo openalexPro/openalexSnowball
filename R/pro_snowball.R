@@ -22,6 +22,33 @@
 #'   citing works than this. A heavily cited work can have hundreds of thousands
 #'   of citers, and extracting records for all of them would read most of the
 #'   corpus.
+#' @param workers Number of parallel workers. Default `1`, which is sequential
+#'   and reproduces the previous behaviour exactly.
+#'
+#'   Both paths gain from raising it, but in different places. **API mode**
+#'   parallelises across the chunked query URLs -- `pro_query()` chunks
+#'   `cites`/`cited_by` at 50 ids, so a snowball over many keypapers becomes
+#'   many URLs that were previously fetched one at a time -- and across the
+#'   JSON-to-parquet conversion. **Snapshot mode** parallelises reading the
+#'   corpus files that the node set is scattered over, which is the dominant
+#'   cost once the result set is large.
+#'
+#'   Raising it buys little for a snowball over a handful of keypapers, where
+#'   fixed costs dominate; it matters at hundreds or thousands. Be aware that
+#'   in API mode more workers means more concurrent requests, so keep it
+#'   within the OpenAlex rate limit for your key.
+#' @param chunk_limit API mode only: how many keypaper ids go into one filter
+#'   URL. `NULL` (the default) derives a value from `workers`.
+#'
+#'   `openalexPro::pro_query()` splits `cites`/`cited_by` filters into URLs of
+#'   `chunk_limit` ids, and `pro_request()` fetches those URLs in parallel --
+#'   but `pro_query()` has no knowledge of `workers`, so the fixed 50-id
+#'   default can leave workers idle: 100 keypapers over 6 workers is two chunks
+#'   and four idle processes. The derived value targets roughly twice as many
+#'   chunks as workers, giving the scheduler slack to balance with, since
+#'   chunks are split by id count while cost follows result volume.
+#'
+#'   At `workers = 1` the derived value is 50, so behaviour is unchanged.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -41,9 +68,12 @@ pro_snowball <- function(
   doi = NULL,
   snapshot = NULL,
   max_results = 100000L,
+  workers = 1L,
+  chunk_limit = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
+  workers <- .check_workers(workers)
   if (!xor(is.null(identifier), is.null(doi))) {
     stop("Either `identifier` or `doi` needs to be specified!")
   }
@@ -67,6 +97,8 @@ pro_snowball <- function(
     doi = doi,
     snapshot = snapshot,
     max_results = max_results,
+    workers = workers,
+    chunk_limit = chunk_limit,
     output = output,
     verbose = verbose
   )

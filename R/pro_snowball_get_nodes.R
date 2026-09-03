@@ -11,6 +11,9 @@
 #'   `build_citation_index()`. Default `NULL` (use the API).
 #' @param max_results Snapshot mode only: refuse to expand a keypaper with more
 #'   citing works than this. See `openalexSnapshot::get_citing()`.
+#' @param workers Number of parallel workers. Default `1` (sequential).
+#' @param chunk_limit API mode only: ids per filter URL. `NULL` (default)
+#'   derives one from `workers`; see `pro_snowball()`.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -30,9 +33,12 @@ pro_snowball_get_nodes <- function(
   limit = NULL,
   snapshot = NULL,
   max_results = 100000L,
+  workers = 1L,
+  chunk_limit = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
+  workers <- .check_workers(workers)
   if (is.null(limit)) {
     limit <- "none"
   }
@@ -103,7 +109,8 @@ pro_snowball_get_nodes <- function(
       unlist() |>
       as.vector()
 
-    .nodes_from_api(keypaper_ids, output, limit, verbose)
+    .nodes_from_api(keypaper_ids, output, limit, verbose, workers = workers,
+                    chunk_limit = chunk_limit)
   } else {
     if (verbose) message("Resolving keypapers against the snapshot ...")
     keypaper_ids <- .keypaper_ids_snapshot(identifier, doi, snapshot, verbose)
@@ -111,7 +118,7 @@ pro_snowball_get_nodes <- function(
       stop("No keypapers could be resolved against the snapshot.", call. = FALSE)
     }
     .nodes_from_snapshot(keypaper_ids, snapshot, output, limit, verbose,
-                         max_results = max_results)
+                         max_results = max_results, workers = workers)
   }
 
   .write_snowball_meta(

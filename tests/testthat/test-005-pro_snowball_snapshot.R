@@ -175,3 +175,24 @@ test_that("provenance records the mode and the snapshot vintage", {
   # $nodes and $edges keep their positions
   expect_equal(names(sb)[1:2], c("nodes", "edges"))
 })
+
+
+test_that("chunk_limit adapts to the worker count, and is inert at workers = 1", {
+  cl <- openalexSnowball:::.chunk_limit_for
+
+  # unchanged default when sequential: pro_query()'s own default is 50
+  expect_equal(cl(1000, workers = 1L), 50L)
+  expect_equal(cl(10, workers = NULL), 50L)
+
+  # ~2x as many chunks as workers, so the scheduler has slack to balance with
+  expect_equal(cl(1200, workers = 6L), 50L)   # capped: 100 -> 50
+  expect_equal(cl(240,  workers = 6L), 20L)   # 240/(2*6) = 20 -> 12 chunks
+  expect_equal(cl(120,  workers = 6L), 10L)   # 120/(2*6) = 10 -> 12 chunks
+
+  # floored at 10: every chunk pays its own request and cursor setup
+  expect_equal(cl(12, workers = 6L), 10L)
+  expect_gte(cl(1, workers = 64L), 10L)
+
+  # explicit override always wins
+  expect_equal(cl(1000, workers = 6L, override = 25), 25L)
+})
