@@ -12,6 +12,7 @@ pro_snowball_get_nodes(
   max_results = 100000L,
   workers = 1L,
   chunk_limit = NULL,
+  select = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -38,6 +39,8 @@ citing works than this. See \code{openalexSnapshot::get_citing()}.}
 
 \item{chunk_limit}{API mode only: ids per filter URL. \code{NULL} (default)
 derives one from \code{workers}; see \code{pro_snowball()}.}
+
+\item{select}{Snapshot mode only: node columns to keep. See \code{pro_snowball()}.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

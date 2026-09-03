@@ -136,7 +136,12 @@
 #' @noRd
 .nodes_from_snapshot <- function(keypaper_ids, snapshot, output, limit,
                                  verbose, max_results = 100000L,
-                                 workers = 1L) {
+                                 workers = 1L, select = NULL) {
+  # `referenced_works` is what the edge extraction unnests, and id/oa_input/
+  # relation carry the structure, so any projection must retain them.
+  if (!is.null(select)) {
+    select <- unique(c("id", "referenced_works", select))
+  }
   fetch <- function(ids, rel) {
     if (length(ids) == 0L) return(invisible(NULL))
     openalexSnapshot::lookup_by_id(
@@ -144,6 +149,7 @@
       root_dir   = snapshot,
       index_file = .snapshot_index(snapshot, "id"),
       backend    = "r",
+      columns    = select,
       # String literals, matching openalexPro::pro_request_parquet(); the cast
       # to BOOLEAN happens once in .assemble_nodes(), shared with the API path.
       add_columns = list(
@@ -204,6 +210,9 @@
 }
 
 #' Path to an index inside a snapshot
+#'
+#' The layouts differ by index: `works_id_idx/` is a hive-partitioned
+#' directory, while `works_doi_idx.parquet` is still a single sorted file.
 #' @noRd
 .snapshot_index <- function(snapshot, kind = c("id", "doi")) {
   kind <- match.arg(kind)
@@ -212,7 +221,10 @@
   } else {
     snapshot
   }
-  file.path(root, paste0("works_", kind, "_idx.parquet"))
+  switch(kind,
+    id  = file.path(root, "works_id_idx"),
+    doi = file.path(root, "works_doi_idx.parquet")
+  )
 }
 
 #' Resolve keypapers against a snapshot, without touching the API

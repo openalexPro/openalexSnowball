@@ -12,6 +12,7 @@ pro_snowball(
   max_results = 100000L,
   workers = 1L,
   chunk_limit = NULL,
+  select = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -71,6 +72,18 @@ chunks as workers, giving the scheduler slack to balance with, since
 chunks are split by id count while cost follows result volume.
 
 At \code{workers = 1} the derived value is 50, so behaviour is unchanged.}
+
+\item{select}{Snapshot mode only: which node columns to keep. \code{NULL} (the
+default) keeps every column the corpus holds, matching the API path.
+
+This is the single biggest cost in snapshot mode. Works records carry ~51
+columns of deeply nested structs, and extracting all of them dominates the
+run: measured over 427 nodes, \strong{177.8 s for all columns against 16.7 s for
+three} -- a 10.6x difference, or 20.3x combined with \code{workers = 6}. If you
+only need the citation graph and a little metadata, name those columns.
+
+\code{id} and \code{referenced_works} are always retained regardless: the first
+identifies nodes, the second is what the edge extraction unnests.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

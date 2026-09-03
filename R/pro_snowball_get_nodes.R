@@ -14,6 +14,7 @@
 #' @param workers Number of parallel workers. Default `1` (sequential).
 #' @param chunk_limit API mode only: ids per filter URL. `NULL` (default)
 #'   derives one from `workers`; see `pro_snowball()`.
+#' @param select Snapshot mode only: node columns to keep. See `pro_snowball()`.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -35,6 +36,7 @@ pro_snowball_get_nodes <- function(
   max_results = 100000L,
   workers = 1L,
   chunk_limit = NULL,
+  select = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
@@ -96,6 +98,21 @@ pro_snowball_get_nodes <- function(
         verbose = verbose
       )
 
+    # A keypaper present locally may no longer resolve through the API -- works
+    # get merged or withdrawn, and the API returns nothing for the old id.
+    # Without this check the next statement fails with a bare DuckDB glob
+    # error naming a temp path, which says nothing about the cause.
+    kp_dir <- file.path(output, "keypaper_parquet")
+    if (!dir.exists(kp_dir) ||
+        length(list.files(kp_dir, pattern = "\\.parquet$", recursive = TRUE)) == 0L) {
+      stop("The OpenAlex API returned no records for the requested keypaper(s): ",
+           paste(utils::head(if (!is.null(identifier)) identifier else doi, 5L),
+                 collapse = ", "),
+           ".\nThey may have been merged or withdrawn since. Check them at ",
+           "https://api.openalex.org/works?filter=openalex:<id>",
+           call. = FALSE)
+    }
+
     keypaper_ids <- sprintf(
       "
       SELECT
@@ -103,7 +120,7 @@ pro_snowball_get_nodes <- function(
       FROM
         read_parquet( '%s/**/*.parquet' )
       ",
-      file.path(output, "keypaper_parquet")
+      kp_dir
     ) |>
       DBI::dbGetQuery(conn = con) |>
       unlist() |>
@@ -118,7 +135,8 @@ pro_snowball_get_nodes <- function(
       stop("No keypapers could be resolved against the snapshot.", call. = FALSE)
     }
     .nodes_from_snapshot(keypaper_ids, snapshot, output, limit, verbose,
-                         max_results = max_results, workers = workers)
+                         max_results = max_results, workers = workers,
+                         select = select)
   }
 
   .write_snowball_meta(

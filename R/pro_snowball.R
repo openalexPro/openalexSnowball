@@ -49,6 +49,17 @@
 #'   chunks are split by id count while cost follows result volume.
 #'
 #'   At `workers = 1` the derived value is 50, so behaviour is unchanged.
+#' @param select Snapshot mode only: which node columns to keep. `NULL` (the
+#'   default) keeps every column the corpus holds, matching the API path.
+#'
+#'   This is the single biggest cost in snapshot mode. Works records carry ~51
+#'   columns of deeply nested structs, and extracting all of them dominates the
+#'   run: measured over 427 nodes, **177.8 s for all columns against 16.7 s for
+#'   three** -- a 10.6x difference, or 20.3x combined with `workers = 6`. If you
+#'   only need the citation graph and a little metadata, name those columns.
+#'
+#'   `id` and `referenced_works` are always retained regardless: the first
+#'   identifies nodes, the second is what the edge extraction unnests.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -70,6 +81,7 @@ pro_snowball <- function(
   max_results = 100000L,
   workers = 1L,
   chunk_limit = NULL,
+  select = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
@@ -99,6 +111,7 @@ pro_snowball <- function(
     max_results = max_results,
     workers = workers,
     chunk_limit = chunk_limit,
+    select = select,
     output = output,
     verbose = verbose
   )

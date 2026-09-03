@@ -196,3 +196,24 @@ test_that("chunk_limit adapts to the worker count, and is inert at workers = 1",
   # explicit override always wins
   expect_equal(cl(1000, workers = 6L, override = 25), 25L)
 })
+
+
+test_that("select= projects node columns and always keeps the structural ones", {
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+
+  res <- pro_snowball(identifier = f$ids[c(1, 4)], snapshot = f$root,
+                      select = "title", output = out, verbose = FALSE)
+  sb <- read_snowball(res, return_data = TRUE)
+
+  # id and referenced_works are retained regardless: the first identifies
+  # nodes, the second is what the edge extraction unnests.
+  expect_true(all(c("id", "referenced_works", "title") %in% names(sb$nodes)))
+  expect_false("publication_year" %in% names(sb$nodes))
+
+  # and the construct is still complete
+  expect_gt(nrow(sb$edges), 0L)
+  expect_setequal(sb$nodes$id[sb$nodes$oa_input],
+                  paste0("https://openalex.org/", f$ids[c(1, 4)]))
+})
+
