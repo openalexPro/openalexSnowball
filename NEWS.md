@@ -1,4 +1,9 @@
-# openalexSnowball 0.11.0
+# openalexSnowball 0.12.0
+
+* `pro_snowball()` gains `select=`, `workers=` and `chunk_limit=`; see below.
+* Requires openalexSnapshot (>= 0.2.0): `select=` needs `lookup_by_id(columns=)`,
+  and the offline path expects the partitioned `works_id_idx/` directory that
+  0.2.0 introduced. An 0.1.x snapshot index will not be found.
 
 ## New: offline snowball searches
 

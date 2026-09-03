@@ -217,3 +217,50 @@ test_that("select= projects node columns and always keeps the structural ones", 
                   paste0("https://openalex.org/", f$ids[c(1, 4)]))
 })
 
+
+test_that(".snapshot_index() knows which indexes are files and which are directories", {
+  # Regression: this helper kept building "<name>_id_idx.parquet" after the ID
+  # index became a hive directory. Every offline snowball against a real
+  # snapshot failed with "No id index at ...works_id_idx.parquet", while the
+  # whole suite stayed green -- the fixtures build their indexes fresh in
+  # tempdir() and never exercise the helper.
+  si <- openalexSnowball:::.snapshot_index
+
+  # the ID index is a DIRECTORY; the DOI index is still a single file
+  expect_equal(basename(si("/snap/parquet", "id")),  "works_id_idx")
+  expect_equal(basename(si("/snap/parquet", "doi")), "works_doi_idx.parquet")
+  expect_false(grepl("\\.parquet$", si("/snap/parquet", "id")))
+
+  # accepts the parquet dir itself, or a root containing one
+  tmp <- withr::local_tempdir()
+  dir.create(file.path(tmp, "parquet"), recursive = TRUE)
+  expect_equal(si(tmp, "id"), file.path(tmp, "parquet", "works_id_idx"))
+  expect_equal(si(file.path(tmp, "parquet"), "id"),
+               file.path(tmp, "parquet", "works_id_idx"))
+
+  expect_error(si("/snap/parquet", "nonsense"))
+})
+
+test_that("worker arguments are validated and mapped to each callee's convention", {
+  # pro_request() takes workers = 1 for sequential; pro_request_parquet() and
+  # openalexSnapshot's functions take NULL. .par_workers() holds that mapping in
+  # one place so call sites cannot drift apart.
+  pw <- openalexSnowball:::.par_workers
+  expect_null(pw(1L));  expect_null(pw(1));  expect_null(pw(NULL))
+  expect_equal(pw(6L), 6L)
+  expect_type(pw(6), "integer")
+
+  cw <- openalexSnowball:::.check_workers
+  expect_equal(cw(1), 1L)
+  expect_equal(cw(8L), 8L)
+  for (bad in list(0, -1, 2.5, NA, "6", c(1, 2), integer(0))) {
+    expect_error(cw(bad), "single positive whole number")
+  }
+})
+
+test_that("pro_snowball() rejects a bad workers value before doing any work", {
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+  expect_error(pro_snowball(identifier = "W1", workers = 0, output = out),
+               "single positive whole number")
+  expect_false(dir.exists(out))   # failed before creating anything
+})
