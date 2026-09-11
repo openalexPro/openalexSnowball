@@ -8,6 +8,11 @@ tibble/data frame.}
 pro_snowball(
   identifier = NULL,
   doi = NULL,
+  snapshot = NULL,
+  max_results = 100000L,
+  workers = 1L,
+  chunk_limit = NULL,
+  select = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -16,6 +21,69 @@ pro_snowball(
 \item{identifier}{Character vector of openalex identifiers.}
 
 \item{doi}{Character vector of dois.}
+
+\item{snapshot}{Path to a local OpenAlex snapshot (either a root directory
+containing \verb{parquet/}, or the \verb{parquet/} directory itself). When supplied,
+the whole snowball is built \strong{offline} from the snapshot instead of the
+OpenAlex API; when \code{NULL} (the default) behaviour is unchanged.
+
+Snapshot mode requires the indexes built by
+\code{openalexSnapshot::build_corpus_index()} and
+\code{openalexSnapshot::build_citation_index()}, plus
+\code{openalexSnapshot::build_doi_index()} if keypapers are given as DOIs.
+
+The output construct is identical -- \verb{nodes/} and \verb{edges/} partitioned the
+same way, readable by \code{\link[=read_snowball]{read_snowball()}} -- but the \strong{node columns differ},
+because snapshot records are not API records. Snapshot nodes carry
+whatever the works corpus holds plus \code{oa_input} and \code{relation}; there is no
+\code{page} column, which is an API pagination artefact. Results are also frozen
+at the snapshot's vintage rather than live.}
+
+\item{max_results}{Snapshot mode only: refuse to expand a keypaper with more
+citing works than this. A heavily cited work can have hundreds of thousands
+of citers, and extracting records for all of them would read most of the
+corpus.}
+
+\item{workers}{Number of parallel workers. Default \code{1}, which is sequential
+and reproduces the previous behaviour exactly.
+
+Both paths gain from raising it, but in different places. \strong{API mode}
+parallelises across the chunked query URLs -- \code{pro_query()} chunks
+\code{cites}/\code{cited_by} at 50 ids, so a snowball over many keypapers becomes
+many URLs that were previously fetched one at a time -- and across the
+JSON-to-parquet conversion. \strong{Snapshot mode} parallelises reading the
+corpus files that the node set is scattered over, which is the dominant
+cost once the result set is large.
+
+Raising it buys little for a snowball over a handful of keypapers, where
+fixed costs dominate; it matters at hundreds or thousands. Be aware that
+in API mode more workers means more concurrent requests, so keep it
+within the OpenAlex rate limit for your key.}
+
+\item{chunk_limit}{API mode only: how many keypaper ids go into one filter
+URL. \code{NULL} (the default) derives a value from \code{workers}.
+
+\code{openalexPro::pro_query()} splits \code{cites}/\code{cited_by} filters into URLs of
+\code{chunk_limit} ids, and \code{pro_request()} fetches those URLs in parallel --
+but \code{pro_query()} has no knowledge of \code{workers}, so the fixed 50-id
+default can leave workers idle: 100 keypapers over 6 workers is two chunks
+and four idle processes. The derived value targets roughly twice as many
+chunks as workers, giving the scheduler slack to balance with, since
+chunks are split by id count while cost follows result volume.
+
+At \code{workers = 1} the derived value is 50, so behaviour is unchanged.}
+
+\item{select}{Snapshot mode only: which node columns to keep. \code{NULL} (the
+default) keeps every column the corpus holds, matching the API path.
+
+This is the single biggest cost in snapshot mode. Works records carry ~51
+columns of deeply nested structs, and extracting all of them dominates the
+run: measured over 427 nodes, \strong{177.8 s for all columns against 16.7 s for
+three} -- a 10.6x difference, or 20.3x combined with \code{workers = 6}. If you
+only need the citation graph and a little metadata, name those columns.
+
+\code{id} and \code{referenced_works} are always retained regardless: the first
+identifies nodes, the second is what the edge extraction unnests.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 
@@ -29,3 +97,37 @@ The folder of the results containing multiple subfolders.
 A function to perform a snowball search and convert the result to a
 tibble/data frame.
 }
+\section{Node roles}{
+
+
+\code{id} is a key in \verb{nodes/}: every OpenAlex work appears exactly once,
+whichever backend produced it. A work can nonetheless hold more than one
+role in the same snowball -- a keypaper that cites another keypaper is both
+\code{keypaper} and \code{citing} -- so the roles are recorded as three independent
+flags:
+\itemize{
+\item \code{is_keypaper} -- the work is one of the supplied keypapers.
+\item \code{is_citing} -- the work cites at least one keypaper.
+\item \code{is_cited} -- the work is cited by at least one keypaper.
+}
+
+Any combination can be \code{TRUE}, and at least one always is. The flags
+describe a work's role \emph{in this snowball}, not a property of the work.
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{sb <- read_snowball(out, return_data = TRUE)
+
+subset(sb$nodes, is_citing & is_cited)   # works in both directions
+subset(sb$nodes, !is_keypaper)           # the snowballed neighbourhood
+}\if{html}{\out{</div>}}
+
+\code{relation} is kept alongside them and is the hive partition key of
+\verb{nodes/}, but it records only the \emph{highest-precedence} role (\code{keypaper} >
+\code{citing} > \code{cited}) and is therefore lossy: a work that is both citing and
+cited reports \code{relation = "citing"}, so \code{relation == "cited"} does \strong{not}
+find every cited work. Filter on the booleans; use \code{relation} only for
+partition pruning.
+
+Both backends behave identically here -- the flags are computed at node
+assembly, after the API or snapshot rows have been collected.
+}
+
