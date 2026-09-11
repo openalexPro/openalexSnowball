@@ -32,6 +32,10 @@ changed.
 Additive, so nothing breaks. Existing code reading `relation` behaves exactly
 as in 0.12.1; snapshots of node schemas gain three columns.
 
+Documented in a "Node roles" section of both `?pro_snowball` and
+`?read_snowball`, the latter with worked filtering examples, since
+`read_snowball()` is what hands you the `nodes` table.
+
 ## Test infrastructure
 
 `tests/testthat/helper_snapshot.R` now sources openalexSnapshot's shared corpus

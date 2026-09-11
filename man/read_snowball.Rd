@@ -41,9 +41,48 @@ and package versions. Defaults to \code{FALSE}, which keeps the return shape
 }
 \value{
 A list containing two elements: nodes and edges, which are either
-\code{ArrowObject} representing the corpus or \code{tibble}s containing the data.
+\code{ArrowObject} representing the corpus or \code{tibble}s containing the data
+(plus \code{meta} when \code{meta = TRUE}).
+
+\code{nodes} has one row per OpenAlex work -- \code{id} is a key -- and carries the
+role columns described below.
 }
 \description{
 This function reads a snowball from Apache Parquet format and returns a list
 containing nodes and edges, which can be either Arrow Datasets or \code{tibble}s.
 }
+\section{Node roles}{
+
+
+A work can hold more than one role in the same snowball: a keypaper that
+cites another keypaper is both a keypaper and a citing work, and a work can
+both cite one keypaper and be cited by another. Because \code{id} is a key, those
+roles cannot each get their own row, so they are three independent flags on
+the single row:
+\itemize{
+\item \code{is_keypaper} -- the work is one of the supplied keypapers.
+\item \code{is_citing} -- the work cites at least one keypaper.
+\item \code{is_cited} -- the work is cited by at least one keypaper.
+}
+
+Any combination can be \code{TRUE}, and at least one always is. Filter on these:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{sb <- read_snowball(path, return_data = TRUE)
+
+subset(sb$nodes, is_citing)              # everything citing a keypaper
+subset(sb$nodes, is_citing & is_cited)   # works in both directions
+subset(sb$nodes, !is_keypaper)           # the snowballed neighbourhood
+}\if{html}{\out{</div>}}
+
+\code{relation} is also present and is the hive partition key of \verb{nodes/}, but it
+records only the \strong{highest-precedence} role (\code{keypaper} > \code{citing} >
+\code{cited}). A work that is both citing and cited reports
+\code{relation = "citing"}, so \code{relation == "cited"} does \strong{not} find every
+cited work -- \code{is_cited} does. Use \code{relation} for partition pruning and the
+booleans for filtering.
+
+The flags describe a work's role \emph{in this snowball}, not a property of the
+work: the same paper can be \code{is_cited} in one snowball and \code{is_citing} in
+another.
+}
+
