@@ -111,9 +111,23 @@ flags:
 \item \code{is_cited} -- the work is cited by at least one keypaper.
 }
 
-Any combination can be \code{TRUE}. \code{relation} is kept alongside them and is the
-hive partition key of \verb{nodes/}, but it holds only the \emph{highest-precedence}
-role (\code{keypaper} > \code{citing} > \code{cited}) and is therefore lossy. Filter on the
-booleans; use \code{relation} only for partition pruning.
+Any combination can be \code{TRUE}, and at least one always is. The flags
+describe a work's role \emph{in this snowball}, not a property of the work.
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{sb <- read_snowball(out, return_data = TRUE)
+
+subset(sb$nodes, is_citing & is_cited)   # works in both directions
+subset(sb$nodes, !is_keypaper)           # the snowballed neighbourhood
+}\if{html}{\out{</div>}}
+
+\code{relation} is kept alongside them and is the hive partition key of
+\verb{nodes/}, but it records only the \emph{highest-precedence} role (\code{keypaper} >
+\code{citing} > \code{cited}) and is therefore lossy: a work that is both citing and
+cited reports \code{relation = "citing"}, so \code{relation == "cited"} does \strong{not}
+find every cited work. Filter on the booleans; use \code{relation} only for
+partition pruning.
+
+Both backends behave identically here -- the flags are computed at node
+assembly, after the API or snapshot rows have been collected.
 }
 

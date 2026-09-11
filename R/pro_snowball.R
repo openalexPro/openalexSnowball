@@ -76,10 +76,25 @@
 #' * `is_citing` -- the work cites at least one keypaper.
 #' * `is_cited` -- the work is cited by at least one keypaper.
 #'
-#' Any combination can be `TRUE`. `relation` is kept alongside them and is the
-#' hive partition key of `nodes/`, but it holds only the *highest-precedence*
-#' role (`keypaper` > `citing` > `cited`) and is therefore lossy. Filter on the
-#' booleans; use `relation` only for partition pruning.
+#' Any combination can be `TRUE`, and at least one always is. The flags
+#' describe a work's role *in this snowball*, not a property of the work.
+#'
+#' ```r
+#' sb <- read_snowball(out, return_data = TRUE)
+#'
+#' subset(sb$nodes, is_citing & is_cited)   # works in both directions
+#' subset(sb$nodes, !is_keypaper)           # the snowballed neighbourhood
+#' ```
+#'
+#' `relation` is kept alongside them and is the hive partition key of
+#' `nodes/`, but it records only the *highest-precedence* role (`keypaper` >
+#' `citing` > `cited`) and is therefore lossy: a work that is both citing and
+#' cited reports `relation = "citing"`, so `relation == "cited"` does **not**
+#' find every cited work. Filter on the booleans; use `relation` only for
+#' partition pruning.
+#'
+#' Both backends behave identically here -- the flags are computed at node
+#' assembly, after the API or snapshot rows have been collected.
 #'
 #' @return The folder of the results containing multiple subfolders.
 #'
