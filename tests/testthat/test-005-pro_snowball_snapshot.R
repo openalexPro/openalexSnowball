@@ -16,10 +16,14 @@ test_that("snapshot mode produces the same construct as the API path", {
   expect_setequal(list.files(res),
                   c("nodes", "edges", "snowball_meta.parquet"))
 
-  expect_setequal(
-    list.files(file.path(res, "nodes")),
-    c("relation=keypaper", "relation=citing", "relation=cited")
-  )
+  # A relation partition may legitimately be absent once nodes are
+  # deduplicated: if everything the keypapers cite is itself a keypaper or a
+  # citer, those rows are promoted and `relation=cited` is never written.
+  # DuckDB does not write empty partitions.
+  parts <- list.files(file.path(res, "nodes"))
+  expect_true(all(parts %in% c("relation=keypaper", "relation=citing",
+                               "relation=cited")))
+  expect_true("relation=keypaper" %in% parts)
   expect_true(all(list.files(file.path(res, "edges")) %in%
                     c("edge_type=core", "edge_type=extended", "edge_type=outside")))
 })
@@ -263,4 +267,60 @@ test_that("pro_snowball() rejects a bad workers value before doing any work", {
   expect_error(pro_snowball(identifier = "W1", workers = 0, output = out),
                "single positive whole number")
   expect_false(dir.exists(out))   # failed before creating anything
+})
+
+test_that("nodes are deduplicated, with keypaper winning over citing over cited", {
+  # Two independent duplication sources, one fix:
+  #   * across relations (both paths) -- a keypaper that also cites another
+  #     keypaper appeared twice, with contradictory oa_input;
+  #   * within a relation (API path) -- pro_query() chunks cites/cited_by at 50
+  #     ids, and a work citing keypapers in two chunks was written twice.
+  # openalexR::oa_snowball() resolves this with nodes[!duplicated(nodes$id), ]
+  # over list(paper, citing, cited); this mirrors that order.
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+
+  # ids 1 and 4 are keypapers; the fixture has later works citing both, and
+  # keypaper 4 itself cites keypaper 1 -- so 1 is a keypaper AND cited.
+  res <- pro_snowball(identifier = f$ids[c(1, 4)], snapshot = f$root,
+                      output = out, verbose = FALSE)
+  n <- read_snowball(res, return_data = TRUE)$nodes
+
+  expect_equal(nrow(n), dplyr::n_distinct(n$id))     # id is a key
+
+  # keypapers keep oa_input = TRUE and are not demoted by another relation
+  kp <- paste0("https://openalex.org/", f$ids[c(1, 4)])
+  expect_setequal(n$id[n$oa_input], kp)
+  expect_true(all(n$relation[n$id %in% kp] == "keypaper"))
+
+  # exactly one row per keypaper, not one per relation it appears in
+  expect_equal(sum(n$id %in% kp), 2L)
+})
+
+test_that("each relation partition holds each id at most once", {
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+  res <- pro_snowball(identifier = f$ids[c(1, 4, 7)], snapshot = f$root,
+                      output = out, verbose = FALSE)
+  n <- read_snowball(res, return_data = TRUE)$nodes
+
+  per <- tapply(n$id, n$relation, function(x) length(x) == length(unique(x)))
+  expect_true(all(unlist(per)))
+})
+
+test_that("deduplicating nodes leaves the edge set unchanged", {
+  # extract_edges.sql has its own DISTINCT and LEFT JOINs nodes twice, so
+  # duplicate node rows never reached the edges -- the fix must not perturb
+  # them either.
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+  res <- pro_snowball(identifier = f$ids[c(1, 4)], snapshot = f$root,
+                      output = out, verbose = FALSE)
+  e <- read_snowball(res, return_data = TRUE)$edges
+
+  expect_gt(nrow(e), 0L)
+  expect_equal(nrow(e), dplyr::n_distinct(paste(e$from, e$to, e$edge_type)))
+  # every edge source is still a node in the (now deduplicated) set
+  n <- read_snowball(res, return_data = TRUE)$nodes
+  expect_true(all(e$from %in% n$id))
 })

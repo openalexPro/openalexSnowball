@@ -1,4 +1,41 @@
-# openalexSnowball 0.12.0
+# openalexSnowball 0.12.1
+
+## Bug fix: duplicated nodes
+
+`id` is now a key in the `nodes` table. It was not, in two independent ways:
+
+* **Across relations, on both paths.** A keypaper that also cites another
+  keypaper appeared twice -- once as `relation = "keypaper"` with
+  `oa_input = TRUE`, once as `relation = "citing"` with `oa_input = FALSE`.
+  The same work carried contradictory metadata, and any join on `id` fanned
+  out. Measured at 75 duplicated ids in a clustered 40-keypaper snowball.
+
+* **Within a relation, on the API path only.** `pro_query()` chunks `cites`
+  and `cited_by` at 50 ids into separate URLs, fetched and converted
+  independently, so a work citing keypapers in two different chunks was
+  written twice. Measured at 1.088x on `cited` and 1.010x on `citing` for 60
+  keypapers. Unreachable below 51 keypapers, which is why the two-keypaper
+  test fixture never exposed it. The snapshot path was never affected --
+  `get_citing()` and `get_cited()` return unique ids.
+
+`.assemble_nodes()` now keeps one row per work, keypaper winning over citing
+winning over cited. That mirrors `openalexR::oa_snowball()`, which does
+`nodes[!duplicated(nodes$id), ]` over `list(paper, citing, cited)` -- so this
+converges on the reference rather than inventing a rule. A plain `DISTINCT`
+would not have worked: the duplicate rows differ in `relation` and `oa_input`.
+
+Two consequences worth knowing:
+
+* A work that both cites a keypaper and is cited by one now keeps only
+  `relation = "citing"`. That signal is lost, deliberately; `openalexR` makes
+  the same trade.
+* A `relation` partition can now be **absent**. If everything the keypapers
+  cite is itself a keypaper or a citer, those rows are promoted and
+  `nodes/relation=cited/` is never written.
+
+Edges are unchanged: `inst/extract_edges.sql` already applied its own
+`DISTINCT`, so duplicate node rows never reached them.
+
 
 * `pro_snowball()` gains `select=`, `workers=` and `chunk_limit=`; see below.
 * Requires openalexSnapshot (>= 0.2.0): `select=` needs `lookup_by_id(columns=)`,
