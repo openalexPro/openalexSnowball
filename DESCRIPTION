@@ -1,7 +1,7 @@
 Type: Package
 Package: openalexSnowball
 Title: Snowball searches for OpenAlex using the openalexPro pipeline
-Version: 0.12.1
+Version: 0.13.0
 Author: Rainer M Krug
 Maintainer: Rainer M Krug <Rainer@krugs.de>
 Description: Perform snowball searches on the OpenAlex citation graph using

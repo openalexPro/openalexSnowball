@@ -97,3 +97,23 @@ The folder of the results containing multiple subfolders.
 A function to perform a snowball search and convert the result to a
 tibble/data frame.
 }
+\section{Node roles}{
+
+
+\code{id} is a key in \verb{nodes/}: every OpenAlex work appears exactly once,
+whichever backend produced it. A work can nonetheless hold more than one
+role in the same snowball -- a keypaper that cites another keypaper is both
+\code{keypaper} and \code{citing} -- so the roles are recorded as three independent
+flags:
+\itemize{
+\item \code{is_keypaper} -- the work is one of the supplied keypapers.
+\item \code{is_citing} -- the work cites at least one keypaper.
+\item \code{is_cited} -- the work is cited by at least one keypaper.
+}
+
+Any combination can be \code{TRUE}. \code{relation} is kept alongside them and is the
+hive partition key of \verb{nodes/}, but it holds only the \emph{highest-precedence}
+role (\code{keypaper} > \code{citing} > \code{cited}) and is therefore lossy. Filter on the
+booleans; use \code{relation} only for partition pruning.
+}
+

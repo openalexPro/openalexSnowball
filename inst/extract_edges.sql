@@ -6,7 +6,9 @@
 CREATE OR REPLACE VIEW keypaper AS
 SELECT *
 FROM nodes
-WHERE relation = 'keypaper';
+WHERE is_keypaper;   -- not relation = 'keypaper': `relation` is the
+                     -- precedence winner and would silently break if
+                     -- that ordering ever changed; is_keypaper cannot.
 --
 -- all edges, even outgoing ones
 --

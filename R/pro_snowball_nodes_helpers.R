@@ -297,14 +297,28 @@
   # A plain DISTINCT would not do it: the duplicate rows differ in `relation`
   # and `oa_input`, so both would survive.
   #
-  # The trade is openalexR's: a work that both cites a keypaper and is cited by
-  # one keeps only `relation = "citing"`. That signal is lost, deliberately, in
-  # exchange for `id` being a key.
+  # Collapsing to one row per work would lose the fact that a work can hold
+  # more than one relation at once, so the three roles are recorded as
+  # booleans BEFORE the collapse. `bool_or(...) OVER (PARTITION BY id)` sees
+  # every row for that work; the QUALIFY then keeps one of them.
+  #
+  # `relation` is retained as the precedence winner, so it stays a usable hive
+  # partition key and existing code keeps working -- but it is lossy by
+  # construction, and `is_keypaper` / `is_citing` / `is_cited` are the honest
+  # answer. A work that both cites a keypaper and is cited by one reports
+  # relation = "citing" and is_citing = is_cited = TRUE.
+  #
+  # Note `relation` is an openalexSnowball column: openalexR's nodes carry only
+  # `oa_input`. The precedence order matches its dedup order all the same, so
+  # the surviving row is the one openalexR would have kept.
   sprintf(
     "
       COPY (
         SELECT
-          * REPLACE (CAST(oa_input AS BOOLEAN) AS oa_input%s)
+          * REPLACE (CAST(oa_input AS BOOLEAN) AS oa_input%s),
+          bool_or(relation = 'keypaper') OVER (PARTITION BY id) AS is_keypaper,
+          bool_or(relation = 'citing')   OVER (PARTITION BY id) AS is_citing,
+          bool_or(relation = 'cited')    OVER (PARTITION BY id) AS is_cited
         FROM
         read_parquet(
           [%s],
