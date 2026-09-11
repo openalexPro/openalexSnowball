@@ -276,6 +276,30 @@
     ", json_extract_string(referenced_works, '$[*]') AS referenced_works"
   }
 
+  # One row per work, keypaper winning over citing winning over cited.
+  #
+  # This mirrors openalexR::oa_snowball(), which does
+  # `nodes[!duplicated(nodes$id), ]` over `list(paper, citing, cited)` -- first
+  # occurrence wins, in that order. Without it the node set duplicates in two
+  # independent ways:
+  #
+  #   * ACROSS relations, on both paths. A keypaper that also cites another
+  #     keypaper appears twice, once with oa_input TRUE and once FALSE -- the
+  #     same work carrying contradictory metadata, and any join on id fans out.
+  #     Measured at 75 duplicated ids in a clustered 40-keypaper snowball.
+  #
+  #   * WITHIN a relation, on the API path only. pro_query() chunks cites and
+  #     cited_by at 50 ids into separate URLs, fetched and converted
+  #     independently; a work citing keypapers in two chunks is written twice.
+  #     Measured at 1.09x on `cited` for 60 keypapers. The snapshot path is
+  #     immune because get_citing()/get_cited() return unique ids.
+  #
+  # A plain DISTINCT would not do it: the duplicate rows differ in `relation`
+  # and `oa_input`, so both would survive.
+  #
+  # The trade is openalexR's: a work that both cites a keypaper and is cited by
+  # one keeps only `relation = "citing"`. That signal is lost, deliberately, in
+  # exchange for `id` being a key.
   sprintf(
     "
       COPY (
@@ -286,6 +310,14 @@
           [%s],
           union_by_name = true
         )
+        QUALIFY row_number() OVER (
+          PARTITION BY id
+          ORDER BY CASE relation
+                     WHEN 'keypaper' THEN 1
+                     WHEN 'citing'   THEN 2
+                     ELSE                 3
+                   END
+        ) = 1
       ) TO
         '%s'
         (FORMAT PARQUET, COMPRESSION SNAPPY, APPEND, PARTITION_BY 'relation')
