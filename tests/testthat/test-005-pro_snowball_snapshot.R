@@ -324,3 +324,63 @@ test_that("deduplicating nodes leaves the edge set unchanged", {
   n <- read_snowball(res, return_data = TRUE)$nodes
   expect_true(all(e$from %in% n$id))
 })
+
+test_that("is_keypaper / is_citing / is_cited record every role a work holds", {
+  # `relation` keeps only the precedence winner and is lossy by construction.
+  # The booleans are aggregated over all of a work's rows before the collapse,
+  # so a work that is both citing and cited says so.
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+  res <- pro_snowball(identifier = f$ids[c(1, 4)], snapshot = f$root,
+                      output = out, verbose = FALSE)
+  n <- read_snowball(res, return_data = TRUE)$nodes
+
+  expect_true(all(c("is_keypaper", "is_citing", "is_cited") %in% names(n)))
+  for (col in c("is_keypaper", "is_citing", "is_cited")) {
+    expect_type(n[[col]], "logical")
+    expect_false(anyNA(n[[col]]))
+  }
+
+  # every row holds at least one role, or it would not be in the set
+  expect_true(all(n$is_keypaper | n$is_citing | n$is_cited))
+
+  # the keypapers are flagged, and oa_input agrees with is_keypaper
+  kp <- paste0("https://openalex.org/", f$ids[c(1, 4)])
+  expect_setequal(n$id[n$is_keypaper], kp)
+  expect_equal(n$oa_input, n$is_keypaper)
+
+  # `relation` never contradicts the booleans: whatever it says, that role is
+  # flagged TRUE
+  expect_true(all(mapply(function(rel, kp_, ci, ce)
+    switch(rel, keypaper = kp_, citing = ci, cited = ce),
+    n$relation, n$is_keypaper, n$is_citing, n$is_cited)))
+})
+
+test_that("a work holding two roles keeps both booleans but one relation", {
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+  # keypaper 4 cites keypaper 1, so 1 is both a keypaper and cited
+  res <- pro_snowball(identifier = f$ids[c(1, 4)], snapshot = f$root,
+                      output = out, verbose = FALSE)
+  n <- read_snowball(res, return_data = TRUE)$nodes
+
+  multi <- n[(n$is_keypaper + n$is_citing + n$is_cited) > 1, ]
+  expect_gt(nrow(multi), 0L)               # the fixture does produce one
+  # still exactly one row each, and precedence held
+  expect_equal(nrow(n), dplyr::n_distinct(n$id))
+  expect_true(all(multi$relation[multi$is_keypaper] == "keypaper"))
+})
+
+test_that("edge classification uses is_keypaper, not the lossy relation", {
+  f <- make_snapshot_fixture()
+  out <- withr::local_tempdir(); unlink(out, recursive = TRUE)
+  res <- pro_snowball(identifier = f$ids[c(1, 4)], snapshot = f$root,
+                      output = out, verbose = FALSE)
+  sb <- read_snowball(res, return_data = TRUE)
+
+  kp <- sb$nodes$id[sb$nodes$is_keypaper]
+  core <- sb$edges[sb$edges$edge_type == "core", ]
+  expect_gt(nrow(core), 0L)
+  # every core edge touches a keypaper, by definition
+  expect_true(all(core$from %in% kp | core$to %in% kp))
+})

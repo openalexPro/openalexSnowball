@@ -3,7 +3,12 @@
 # The corpus generator lives in openalexSnapshot (inst/testdata) so there is
 # one copy rather than two that drift apart.
 
-source(system.file("testdata/make_tiny_corpus.R", package = "openalexSnapshot"))
+# `local = TRUE` evaluates it here rather than in globalenv. Under
+# `devtools::test()` / `test_local()` the test environment does not see
+# globalenv, so the default would define `make_tiny_corpus()` somewhere the
+# tests cannot reach -- `test_dir()` happens to work, which is what hid it.
+source(system.file("testdata/make_tiny_corpus.R", package = "openalexSnapshot"),
+       local = TRUE)
 
 #' Build a closed test corpus with all three indexes
 #'

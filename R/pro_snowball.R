@@ -64,6 +64,23 @@
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
 #'
+#' @section Node roles:
+#'
+#' `id` is a key in `nodes/`: every OpenAlex work appears exactly once,
+#' whichever backend produced it. A work can nonetheless hold more than one
+#' role in the same snowball -- a keypaper that cites another keypaper is both
+#' `keypaper` and `citing` -- so the roles are recorded as three independent
+#' flags:
+#'
+#' * `is_keypaper` -- the work is one of the supplied keypapers.
+#' * `is_citing` -- the work cites at least one keypaper.
+#' * `is_cited` -- the work is cited by at least one keypaper.
+#'
+#' Any combination can be `TRUE`. `relation` is kept alongside them and is the
+#' hive partition key of `nodes/`, but it holds only the *highest-precedence*
+#' role (`keypaper` > `citing` > `cited`) and is therefore lossy. Filter on the
+#' booleans; use `relation` only for partition pruning.
+#'
 #' @return The folder of the results containing multiple subfolders.
 #'
 #' @export

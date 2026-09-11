@@ -1,3 +1,46 @@
+# openalexSnowball 0.13.0
+
+## `nodes` records every role a work holds
+
+0.12.1 made `id` a key in `nodes/` by collapsing duplicated works to one row.
+That was correct, but it made `relation` lossy: a work that both cites a
+keypaper and is cited by one kept `relation = "citing"` only, and the fact
+that it was also cited disappeared.
+
+`nodes/` now carries three boolean columns alongside `relation`:
+
+* `is_keypaper` -- the work is one of the supplied keypapers.
+* `is_citing` -- the work cites at least one keypaper.
+* `is_cited` -- the work is cited by at least one keypaper.
+
+Any combination can be `TRUE`, so no role is lost. They are computed with
+`bool_or(...) OVER (PARTITION BY id)` *before* the deduplicating `QUALIFY`, so
+they see every row a work had, not just the surviving one. In a clustered
+40-keypaper snowball over the snapshot, 75 of 3837 works hold more than one
+role -- 60 `citing` + `cited`, 15 `keypaper` + something else.
+
+`relation` is kept and unchanged: it is the hive partition key of `nodes/`, so
+removing it would break the on-disk layout and every existing reader. It still
+holds the highest-precedence role only (`keypaper` > `citing` > `cited`).
+Filter on the booleans; use `relation` for partition pruning.
+
+`inst/extract_edges.sql` now selects keypapers with `WHERE is_keypaper` rather
+than `WHERE relation = 'keypaper'`. The two agree today -- `keypaper` wins the
+precedence order -- but only the boolean stays correct if that order is ever
+changed.
+
+Additive, so nothing breaks. Existing code reading `relation` behaves exactly
+as in 0.12.1; snapshots of node schemas gain three columns.
+
+## Test infrastructure
+
+`tests/testthat/helper_snapshot.R` now sources openalexSnapshot's shared corpus
+generator with `local = TRUE`. Without it the function landed in globalenv,
+which the test environment of `devtools::test()` and `testthat::test_local()`
+does not see, so the whole offline-snowball file errored with "could not find
+function `make_tiny_corpus`". `testthat::test_dir()` did see it, which is why
+the suite looked green. Pre-existing; unrelated to the change above.
+
 # openalexSnowball 0.12.1
 
 ## Bug fix: duplicated nodes

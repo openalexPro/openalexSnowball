@@ -29,18 +29,20 @@
       [25] "has_fulltext"                   "id"                            
       [27] "ids"                            "indexed_in"                    
       [29] "institutions"                   "institutions_distinct_count"   
-      [31] "is_paratext"                    "is_retracted"                  
-      [33] "is_xpac"                        "keywords"                      
-      [35] "language"                       "locations"                     
-      [37] "locations_count"                "mesh"                          
-      [39] "oa_input"                       "open_access"                   
-      [41] "page"                           "primary_location"              
-      [43] "primary_topic"                  "publication_date"              
-      [45] "publication_year"               "referenced_works"              
-      [47] "referenced_works_count"         "related_works"                 
-      [49] "relation"                       "sustainable_development_goals" 
-      [51] "title"                          "topics"                        
-      [53] "type"                           "updated_date"                  
+      [31] "is_cited"                       "is_citing"                     
+      [33] "is_keypaper"                    "is_paratext"                   
+      [35] "is_retracted"                   "is_xpac"                       
+      [37] "keywords"                       "language"                      
+      [39] "locations"                      "locations_count"               
+      [41] "mesh"                           "oa_input"                      
+      [43] "open_access"                    "page"                          
+      [45] "primary_location"               "primary_topic"                 
+      [47] "publication_date"               "publication_year"              
+      [49] "referenced_works"               "referenced_works_count"        
+      [51] "related_works"                  "relation"                      
+      [53] "sustainable_development_goals"  "title"                         
+      [55] "topics"                         "type"                          
+      [57] "updated_date"                  
 
 # pro_snowball edges have expected shape
 
@@ -59,7 +61,7 @@
       read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "core")
     Output
       $nodes
-      # A tibble: 46 x 54
+      # A tibble: 46 x 57
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -73,7 +75,7 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      # i 53 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
       #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
@@ -136,7 +138,7 @@
       read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "extended")
     Output
       $nodes
-      # A tibble: 46 x 54
+      # A tibble: 46 x 57
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -150,7 +152,7 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      # i 53 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
       #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
@@ -214,7 +216,7 @@
         "extended", "core"))
     Output
       $nodes
-      # A tibble: 46 x 54
+      # A tibble: 46 x 57
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -228,7 +230,7 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      # i 53 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
       #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
@@ -291,7 +293,7 @@
       read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, edge_type = "outside")
     Output
       $nodes
-      # A tibble: 46 x 54
+      # A tibble: 46 x 57
          id    doi   title display_name publication_year publication_date ids$openalex
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
@@ -305,7 +307,7 @@
        9 W199~ http~ The ~ The open ac~             2015 2015-03-11       https://ope~
       10 W205~ <NA>  Argu~ Argumentati~             1999 1999-01-01       https://ope~
       # i 36 more rows
-      # i 50 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
+      # i 53 more variables: ids$doi <chr>, $mag <chr>, $pmid <chr>, language <chr>,
       #   primary_location <tibble[,13]>, type <chr>, indexed_in <list<character>>,
       #   open_access <tibble[,4]>,
       #   authorships <list<
