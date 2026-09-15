@@ -1,5 +1,21 @@
 # openalexSnowball 0.13.0
 
+## Documentation: pool keypapers in snapshot mode
+
+`?pro_snowball` gains a section on where snapshot-mode time actually goes, with
+the measurement behind it. Over 100 random keypapers against the full corpus,
+record retrieval is 92% of the run (95.5 s) against 8.5 s for both index
+lookups -- and the reason is scattered reads, not the lookup: those keypapers
+produced 3,121 nodes spread over 1,222 of the corpus's 2,127 parquet files, an
+average of 2.6 wanted rows per file opened.
+
+Because that file set saturates at 2,127 however many keypapers are supplied,
+cost is strongly concave in the number of keypapers. Users running many
+searches should pass all keypapers to a single call rather than looping, which
+is now documented, with the caveat that a pooled run defines `oa_input`,
+`relation`, the `is_*` flags and `edge_type` relative to the pooled keypaper
+set.
+
 ## `nodes` records every role a work holds
 
 0.12.1 made `id` a key in `nodes/` by collapsing duplicated works to one row.

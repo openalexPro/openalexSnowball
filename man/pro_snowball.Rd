@@ -81,6 +81,9 @@ columns of deeply nested structs, and extracting all of them dominates the
 run: measured over 427 nodes, \strong{177.8 s for all columns against 16.7 s for
 three} -- a 10.6x difference, or 20.3x combined with \code{workers = 6}. If you
 only need the citation graph and a little metadata, name those columns.
+\code{abstract} alone is 11.12 GB of the corpus and is worth dropping on its
+own. See the pooling section below for why this matters and what else to
+do about it.
 
 \code{id} and \code{referenced_works} are always retained regardless: the first
 identifies nodes, the second is what the edge extraction unnests.}
@@ -97,6 +100,58 @@ The folder of the results containing multiple subfolders.
 A function to perform a snowball search and convert the result to a
 tibble/data frame.
 }
+\section{Snapshot mode -- pool your keypapers into one call}{
+
+
+In snapshot mode almost all the time goes on \strong{retrieving the node records},
+not on finding which works the snowball contains. Measured over 100 random
+keypapers against the full corpus:\tabular{lrr}{
+   phase \tab time \tab share \cr
+   \code{get_citing()} -- citation index \tab 7.3 s \tab 7\% \cr
+   \code{get_cited()} -- \code{referenced_works} \tab 1.2 s \tab 1\% \cr
+   record retrieval \tab 95.5 s \tab \strong{92\%} \cr
+}
+
+
+The indexes are not the bottleneck, and neither is the id-to-location
+lookup. The cost is the \emph{scattered read} that follows it. Those 100
+keypapers produced 3,121 nodes living in \strong{1,222 of the corpus's 2,127
+parquet files} -- 57\% of the corpus, at an average of 2.6 wanted rows per
+file opened. Each file still costs an open, a footer parse and a row-group
+decompression.
+
+Two things follow.
+
+\strong{Name the columns you need.} \verb{select=} cannot reduce how many files are
+opened, but it cuts the bytes decompressed inside each one, which is where
+its large speed-up comes from.
+
+\strong{Pass all keypapers to one call rather than looping.} The file set
+saturates: it cannot exceed 2,127 however many keypapers you give, and 100
+keypapers already reach 1,222 of them. Cost is therefore strongly concave in
+the number of keypapers -- ten times the keypapers costs roughly twice the
+time, not ten times. A loop of 200 separate calls re-pays the scattered-read
+cost 200 times over largely the same files:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{# avoid -- pays the corpus-wide scattered read 200 times
+for (grp in groups) pro_snowball(identifier = grp, snapshot = snap, ...)
+
+# prefer -- one scattered read, one deduplicated result
+pro_snowball(identifier = unlist(groups), snapshot = snap, ...)
+}\if{html}{\out{</div>}}
+
+The caveat is that pooling produces \strong{one} snowball. \code{oa_input},
+\code{relation}, \code{is_keypaper} / \code{is_citing} / \code{is_cited} and \code{edge_type} are all
+defined relative to the keypaper set of that call, so a pooled run cannot
+tell you which of your original groups a given node came from. If you need
+the groups kept apart, pool anyway and re-derive membership afterwards by
+joining the edges back to each group's keypaper ids -- that is far cheaper
+than re-reading the corpus per group.
+
+This applies only to \verb{snapshot=}. API mode is network-bound and scales
+roughly linearly in keypapers; see \code{workers} and \code{chunk_limit} there.
+}
+
 \section{Node roles}{
 
 
