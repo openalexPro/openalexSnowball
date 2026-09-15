@@ -384,3 +384,34 @@ test_that("edge classification uses is_keypaper, not the lossy relation", {
   # every core edge touches a keypaper, by definition
   expect_true(all(core$from %in% kp | core$to %in% kp))
 })
+
+test_that("endpoint is exposed and defaults to the public OpenAlex API", {
+  for (fn in list(pro_snowball, pro_snowball_get_nodes)) {
+    fm <- formals(fn)
+    expect_true("endpoint" %in% names(fm))
+    expect_identical(eval(fm$endpoint), "https://api.openalex.org")
+  }
+})
+
+test_that("endpoint is validated and trailing slashes are stripped", {
+  expect_identical(.check_endpoint("https://oa.internal/"),  "https://oa.internal")
+  expect_identical(.check_endpoint("https://oa.internal///"), "https://oa.internal")
+  expect_identical(.check_endpoint("  https://oa.internal "), "https://oa.internal")
+  expect_identical(.check_endpoint("https://oa.internal"),    "https://oa.internal")
+  for (bad in list(NULL, NA_character_, character(0), c("a", "b"), 1L, "", "   ")) {
+    expect_error(.check_endpoint(bad), "single non-empty character string")
+  }
+})
+
+test_that("snapshot mode ignores endpoint and makes no request", {
+  fx <- make_snapshot_fixture()
+  out <- withr::local_tempdir()
+  # An endpoint that cannot resolve: if any request were made, this would error.
+  res <- pro_snowball(
+    identifier = fx$ids[1:2], snapshot = fx$root,
+    endpoint = "https://endpoint.invalid", output = out, verbose = FALSE
+  )
+  nodes <- read_snowball(res, return_data = TRUE)$nodes
+  expect_gt(nrow(nodes), 0L)
+  expect_true(all(c("is_keypaper", "is_citing", "is_cited") %in% names(nodes)))
+})

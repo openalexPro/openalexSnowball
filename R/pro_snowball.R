@@ -63,6 +63,18 @@
 #'
 #'   `id` and `referenced_works` are always retained regardless: the first
 #'   identifies nodes, the second is what the edge extraction unnests.
+#' @param endpoint API mode only: base URL of the OpenAlex API. Defaults to
+#'   `"https://api.openalex.org"`.
+#'
+#'   Point this at a self-hosted OpenAlex instance (OurResearch publish the
+#'   production stack as `ourresearch/openalex-elastic-api`) or at a mock
+#'   server in tests. The API semantics are unchanged -- the same `cites` /
+#'   `cited_by` filters and cursor pagination -- so only the host differs, and
+#'   a self-hosted instance carries no rate limit, which is what makes large
+#'   `workers` values worthwhile.
+#'
+#'   Trailing slashes are stripped. Ignored in snapshot mode, where no request
+#'   is made.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -168,10 +180,12 @@ pro_snowball <- function(
   workers = 1L,
   chunk_limit = NULL,
   select = NULL,
+  endpoint = "https://api.openalex.org",
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
   workers <- .check_workers(workers)
+  endpoint <- .check_endpoint(endpoint)
   if (!xor(is.null(identifier), is.null(doi))) {
     stop("Either `identifier` or `doi` needs to be specified!")
   }
@@ -198,6 +212,7 @@ pro_snowball <- function(
     workers = workers,
     chunk_limit = chunk_limit,
     select = select,
+    endpoint = endpoint,
     output = output,
     verbose = verbose
   )

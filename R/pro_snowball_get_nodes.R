@@ -15,6 +15,8 @@
 #' @param chunk_limit API mode only: ids per filter URL. `NULL` (default)
 #'   derives one from `workers`; see `pro_snowball()`.
 #' @param select Snapshot mode only: node columns to keep. See `pro_snowball()`.
+#' @param endpoint API mode only: base URL of the OpenAlex API. See
+#'   `pro_snowball()`.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -37,10 +39,12 @@ pro_snowball_get_nodes <- function(
   workers = 1L,
   chunk_limit = NULL,
   select = NULL,
+  endpoint = "https://api.openalex.org",
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
   workers <- .check_workers(workers)
+  endpoint <- .check_endpoint(endpoint)
   if (is.null(limit)) {
     limit <- "none"
   }
@@ -82,9 +86,11 @@ pro_snowball_get_nodes <- function(
     if (verbose) message("Collecting keypapers...")
 
     qu <- if (!is.null(identifier)) {
-      openalexPro::pro_query(id = identifier, entity = "works")
+      openalexPro::pro_query(id = identifier, entity = "works",
+                             endpoint = endpoint)
     } else {
-      openalexPro::pro_query(doi = doi, entity = "works")
+      openalexPro::pro_query(doi = doi, entity = "works",
+                             endpoint = endpoint)
     }
     openalexPro::pro_request(
       query_url = qu,
@@ -127,7 +133,7 @@ pro_snowball_get_nodes <- function(
       as.vector()
 
     .nodes_from_api(keypaper_ids, output, limit, verbose, workers = workers,
-                    chunk_limit = chunk_limit)
+                    chunk_limit = chunk_limit, endpoint = endpoint)
   } else {
     if (verbose) message("Resolving keypapers against the snapshot ...")
     keypaper_ids <- .keypaper_ids_snapshot(identifier, doi, snapshot, verbose)

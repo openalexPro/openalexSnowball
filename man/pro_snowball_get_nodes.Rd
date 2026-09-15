@@ -13,6 +13,7 @@ pro_snowball_get_nodes(
   workers = 1L,
   chunk_limit = NULL,
   select = NULL,
+  endpoint = "https://api.openalex.org",
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -41,6 +42,9 @@ citing works than this. See \code{openalexSnapshot::get_citing()}.}
 derives one from \code{workers}; see \code{pro_snowball()}.}
 
 \item{select}{Snapshot mode only: node columns to keep. See \code{pro_snowball()}.}
+
+\item{endpoint}{API mode only: base URL of the OpenAlex API. See
+\code{pro_snowball()}.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

@@ -71,8 +71,27 @@
 #' @param verbose Print progress.
 #' @return Invisibly `NULL`; writes `*_parquet` directories under `output`.
 #' @noRd
+#' Validate and normalise an OpenAlex API endpoint
+#'
+#' Trailing slashes are stripped so that `"https://host/"` and `"https://host"`
+#' build identical URLs -- `pro_query()` appends `/works`, and a doubled slash
+#' is not merely cosmetic: some reverse proxies treat `//works` as a different
+#' route and return 404.
+#'
+#' @param endpoint Character scalar.
+#' @return The normalised endpoint.
+#' @noRd
+.check_endpoint <- function(endpoint) {
+  if (!is.character(endpoint) || length(endpoint) != 1L || is.na(endpoint) ||
+      !nzchar(trimws(endpoint))) {
+    stop("`endpoint` must be a single non-empty character string.", call. = FALSE)
+  }
+  sub("/+$", "", trimws(endpoint))
+}
+
 .nodes_from_api <- function(keypaper_ids, output, limit, verbose, workers = 1L,
-                            chunk_limit = NULL) {
+                            chunk_limit = NULL,
+                            endpoint = "https://api.openalex.org") {
   chunk_limit <- .chunk_limit_for(length(keypaper_ids), workers, chunk_limit)
   if (verbose && workers > 1L) {
     message("Using chunk_limit = ", chunk_limit, " for ", workers, " workers (",
@@ -85,7 +104,7 @@
       )
     }
     openalexPro::pro_query(cites = keypaper_ids, entity = "works",
-                           chunk_limit = chunk_limit) |>
+                           chunk_limit = chunk_limit, endpoint = endpoint) |>
       openalexPro::pro_request(
         output = file.path(output, "citing_json"),
         workers = workers,
@@ -104,7 +123,7 @@
       message("Collecting all documents cited by the keypapers ...")
     }
     openalexPro::pro_query(cited_by = keypaper_ids, entity = "works",
-                           chunk_limit = chunk_limit) |>
+                           chunk_limit = chunk_limit, endpoint = endpoint) |>
       openalexPro::pro_request(
         output = file.path(output, "cited_json"),
         workers = workers,
