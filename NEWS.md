@@ -1,3 +1,31 @@
+# openalexSnowball 0.14.0
+
+## `endpoint` argument: target a self-hosted OpenAlex
+
+`pro_snowball()` and `pro_snowball_get_nodes()` gain `endpoint`, defaulting to
+`"https://api.openalex.org"` -- so behaviour is unchanged unless you set it.
+
+`openalexPro::pro_query()` has always accepted an `endpoint`, but neither
+snowball function exposed or forwarded it, so all four query call sites were
+pinned to the public API. Pointing a snowball at a self-hosted OpenAlex
+instance (OurResearch publish the production stack as
+`ourresearch/openalex-elastic-api`) was therefore impossible without editing
+the package. It now takes one argument.
+
+This matters beyond convenience: a self-hosted instance carries no rate limit,
+which is the constraint that caps useful `workers` values on the API path. It
+also makes the API path testable against a mock server rather than only
+against recorded cassettes.
+
+Threaded through all four call sites -- keypaper lookup by id, by DOI, and the
+`cites` / `cited_by` expansions -- and the "no records for the requested
+keypaper(s)" error now names the endpoint actually queried instead of
+hard-coding the public host.
+
+Trailing slashes are stripped: `pro_query()` appends `/works`, and `//works`
+is not merely cosmetic, since some reverse proxies route it differently.
+Ignored in snapshot mode, where no request is made.
+
 # openalexSnowball 0.13.0
 
 ## Documentation: pool keypapers in snapshot mode

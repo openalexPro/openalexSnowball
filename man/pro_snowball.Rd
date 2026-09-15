@@ -13,6 +13,7 @@ pro_snowball(
   workers = 1L,
   chunk_limit = NULL,
   select = NULL,
+  endpoint = "https://api.openalex.org",
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -87,6 +88,19 @@ do about it.
 
 \code{id} and \code{referenced_works} are always retained regardless: the first
 identifies nodes, the second is what the edge extraction unnests.}
+
+\item{endpoint}{API mode only: base URL of the OpenAlex API. Defaults to
+\code{"https://api.openalex.org"}.
+
+Point this at a self-hosted OpenAlex instance (OurResearch publish the
+production stack as \code{ourresearch/openalex-elastic-api}) or at a mock
+server in tests. The API semantics are unchanged -- the same \code{cites} /
+\code{cited_by} filters and cursor pagination -- so only the host differs, and
+a self-hosted instance carries no rate limit, which is what makes large
+\code{workers} values worthwhile.
+
+Trailing slashes are stripped. Ignored in snapshot mode, where no request
+is made.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 
