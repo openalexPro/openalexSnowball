@@ -69,8 +69,17 @@
 #' @noRd
 .osb_write_manifest <- function(output, params) {
   dir.create(output, recursive = TRUE, showWarnings = FALSE)
-  arrow::write_parquet(params, .osb_manifest_path(output))
-  invisible(.osb_manifest_path(output))
+  path <- .osb_manifest_path(output)
+  # Write beside the target and rename: atomic, and it avoids touching a file
+  # another handle may still hold open (see the mmap note in
+  # .osb_check_manifest()).
+  tmp <- paste0(path, ".tmp")
+  arrow::write_parquet(params, tmp)
+  if (!file.rename(tmp, path)) {
+    unlink(tmp, force = TRUE)
+    stop("Could not write the run manifest: ", path, call. = FALSE)
+  }
+  invisible(path)
 }
 
 #' Check a resumed run against the manifest of the interrupted one
@@ -89,7 +98,11 @@
          "Delete it, or call with `resume = FALSE` to overwrite it.",
          call. = FALSE)
   }
-  old <- as.data.frame(arrow::read_parquet(path))
+  # mmap = FALSE matters on Windows: arrow memory-maps the file by default,
+  # and the mapping stays open long enough that rewriting the manifest a
+  # moment later fails with "[Windows error 1224] The requested operation
+  # cannot be performed on a file with a user-mapped section open."
+  old <- as.data.frame(arrow::read_parquet(path, mmap = FALSE))
   cmp <- c("seed_hash", "mode", "snapshot", "limit", "endpoint",
            "max_results", "select")
   diffs <- character(0)
