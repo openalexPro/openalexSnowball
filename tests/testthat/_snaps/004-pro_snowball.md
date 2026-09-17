@@ -66,7 +66,7 @@
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
        2 W304~ http~ Tren~ Trends of P~             2020 2020-08-01       https://ope~
-       3 W150~ <NA>  Corp~ Corpora for~             2010 2010-05-17       https://ope~
+       3 W150~ http~ Corp~ Corpora for~             2010 2010-05-01       https://ope~
        4 W151~ http~ Part~ Partridge: ~             2013 2013-01-01       https://ope~
        5 W152~ <NA>  Text~ TextRank: B~             2004 2004-07-01       https://ope~
        6 W157~ http~ Valu~ Value all r~             2013 2013-01-08       https://ope~
@@ -143,7 +143,7 @@
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
        2 W304~ http~ Tren~ Trends of P~             2020 2020-08-01       https://ope~
-       3 W150~ <NA>  Corp~ Corpora for~             2010 2010-05-17       https://ope~
+       3 W150~ http~ Corp~ Corpora for~             2010 2010-05-01       https://ope~
        4 W151~ http~ Part~ Partridge: ~             2013 2013-01-01       https://ope~
        5 W152~ <NA>  Text~ TextRank: B~             2004 2004-07-01       https://ope~
        6 W157~ http~ Valu~ Value all r~             2013 2013-01-08       https://ope~
@@ -221,7 +221,7 @@
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
        2 W304~ http~ Tren~ Trends of P~             2020 2020-08-01       https://ope~
-       3 W150~ <NA>  Corp~ Corpora for~             2010 2010-05-17       https://ope~
+       3 W150~ http~ Corp~ Corpora for~             2010 2010-05-01       https://ope~
        4 W151~ http~ Part~ Partridge: ~             2013 2013-01-01       https://ope~
        5 W152~ <NA>  Text~ TextRank: B~             2004 2004-07-01       https://ope~
        6 W157~ http~ Valu~ Value all r~             2013 2013-01-08       https://ope~
@@ -298,7 +298,7 @@
          <chr> <chr> <chr> <chr>                   <int> <date>           <chr>       
        1 W304~ http~ Meas~ Measuring p~             2020 2020-07-28       https://ope~
        2 W304~ http~ Tren~ Trends of P~             2020 2020-08-01       https://ope~
-       3 W150~ <NA>  Corp~ Corpora for~             2010 2010-05-17       https://ope~
+       3 W150~ http~ Corp~ Corpora for~             2010 2010-05-01       https://ope~
        4 W151~ http~ Part~ Partridge: ~             2013 2013-01-01       https://ope~
        5 W152~ <NA>  Text~ TextRank: B~             2004 2004-07-01       https://ope~
        6 W157~ http~ Valu~ Value all r~             2013 2013-01-08       https://ope~

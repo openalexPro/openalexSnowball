@@ -7,6 +7,7 @@
 pro_snowball_extract_edges(
   nodes = NULL,
   output = tempfile(fileext = ".snowball"),
+  duckdb_config = NULL,
   verbose = FALSE
 )
 }

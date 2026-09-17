@@ -14,6 +14,7 @@ pro_snowball(
   chunk_limit = NULL,
   select = NULL,
   endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -101,6 +102,20 @@ a self-hosted instance carries no rate limit, which is what makes large
 
 Trailing slashes are stripped. Ignored in snapshot mode, where no request
 is made.}
+
+\item{duckdb_config}{DuckDB settings for the two connections this function
+opens. \code{NULL} (the default) uses \code{\link[=snowball_duckdb_config]{snowball_duckdb_config()}}'s defaults,
+optionally overridden field-by-field by
+\code{getOption("openalexSnowball.duckdb_config")}.
+
+The defaults matter at scale. DuckDB's own are a \code{memory_limit} of ~80\%
+of system RAM \strong{per instance} and a spill directory relative to the
+working directory -- both wrong when several \code{pro_snowball()} calls run
+from a worker pool. Declare how many you run at once and the budget is
+divided accordingly:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{options(openalexSnowball.duckdb_config = list(concurrency = 4))
+}\if{html}{\out{</div>}}}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

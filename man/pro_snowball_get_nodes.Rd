@@ -14,6 +14,7 @@ pro_snowball_get_nodes(
   chunk_limit = NULL,
   select = NULL,
   endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -45,6 +46,9 @@ derives one from \code{workers}; see \code{pro_snowball()}.}
 
 \item{endpoint}{API mode only: base URL of the OpenAlex API. See
 \code{pro_snowball()}.}
+
+\item{duckdb_config}{DuckDB settings for the assembly connection. See
+\code{\link[=snowball_duckdb_config]{snowball_duckdb_config()}}.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

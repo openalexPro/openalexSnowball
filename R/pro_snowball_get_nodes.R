@@ -17,6 +17,8 @@
 #' @param select Snapshot mode only: node columns to keep. See `pro_snowball()`.
 #' @param endpoint API mode only: base URL of the OpenAlex API. See
 #'   `pro_snowball()`.
+#' @param duckdb_config DuckDB settings for the assembly connection. See
+#'   [snowball_duckdb_config()].
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -40,11 +42,13 @@ pro_snowball_get_nodes <- function(
   chunk_limit = NULL,
   select = NULL,
   endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
   workers <- .check_workers(workers)
   endpoint <- .check_endpoint(endpoint)
+  cfg <- .osb_resolve_duckdb_config(duckdb_config)
   if (is.null(limit)) {
     limit <- "none"
   }
@@ -73,10 +77,19 @@ pro_snowball_get_nodes <- function(
 
   # Create and setup in memory DuckDB --------------------------------------
 
-  con <- DBI::dbConnect(duckdb::duckdb())
+  # Configured rather than bare: see R/utils_duckdb.R for why DuckDB's
+  # defaults (80% of RAM per instance, and a spill directory relative to the
+  # working directory) are wrong for a package callers run several of at once.
+  duck <- .osb_con(cfg, tag = "nodes", output = output)
+  con <- duck$con
 
   on.exit(
-    try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
+    {
+      try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE)
+      if (!is.null(duck$temp_dir)) {
+        unlink(duck$temp_dir, recursive = TRUE, force = TRUE)
+      }
+    },
     add = TRUE
   )
 
@@ -119,18 +132,7 @@ pro_snowball_get_nodes <- function(
            call. = FALSE)
     }
 
-    keypaper_ids <- sprintf(
-      "
-      SELECT
-        id
-      FROM
-        read_parquet( '%s/**/*.parquet' )
-      ",
-      kp_dir
-    ) |>
-      DBI::dbGetQuery(conn = con) |>
-      unlist() |>
-      as.vector()
+    keypaper_ids <- .osb_keypaper_ids(con, kp_dir)
 
     .nodes_from_api(keypaper_ids, output, limit, verbose, workers = workers,
                     chunk_limit = chunk_limit, endpoint = endpoint)

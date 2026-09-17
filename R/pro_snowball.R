@@ -75,6 +75,20 @@
 #'
 #'   Trailing slashes are stripped. Ignored in snapshot mode, where no request
 #'   is made.
+#' @param duckdb_config DuckDB settings for the two connections this function
+#'   opens. `NULL` (the default) uses [snowball_duckdb_config()]'s defaults,
+#'   optionally overridden field-by-field by
+#'   `getOption("openalexSnowball.duckdb_config")`.
+#'
+#'   The defaults matter at scale. DuckDB's own are a `memory_limit` of ~80%
+#'   of system RAM **per instance** and a spill directory relative to the
+#'   working directory -- both wrong when several `pro_snowball()` calls run
+#'   from a worker pool. Declare how many you run at once and the budget is
+#'   divided accordingly:
+#'
+#'   ```r
+#'   options(openalexSnowball.duckdb_config = list(concurrency = 4))
+#'   ```
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -181,11 +195,14 @@ pro_snowball <- function(
   chunk_limit = NULL,
   select = NULL,
   endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
   workers <- .check_workers(workers)
   endpoint <- .check_endpoint(endpoint)
+  # Validate early so a typo'd field fails before hours of fetching.
+  invisible(.osb_resolve_duckdb_config(duckdb_config))
   if (!xor(is.null(identifier), is.null(doi))) {
     stop("Either `identifier` or `doi` needs to be specified!")
   }
@@ -213,12 +230,14 @@ pro_snowball <- function(
     chunk_limit = chunk_limit,
     select = select,
     endpoint = endpoint,
+    duckdb_config = duckdb_config,
     output = output,
     verbose = verbose
   )
   edges <- pro_snowball_extract_edges(
     nodes = nodes,
     output = output,
+    duckdb_config = duckdb_config,
     verbose = verbose
   )
 

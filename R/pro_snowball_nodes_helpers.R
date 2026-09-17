@@ -260,7 +260,56 @@
 #' Source-agnostic: both fetchers write the same `<relation>_parquet`
 #' directories, so this is shared.
 #'
+#' Two passes, because one pass does not fit in memory. The node set is ~51
+#' columns wide and several are nested and large (`abstract`,
+#' `abstract_inverted_index` as `MAP(VARCHAR, BIGINT[])`, `authorships`,
+#' `locations`, `topics`, `referenced_works`). Computing the role flags and
+#' the de-duplication with window functions over that row -- which is what
+#' 0.12.1 and 0.13.0 did -- pushes every wide row through four *blocking*
+#' operators: DuckDB materialises a window's entire input before emitting a
+#' row, and `SELECT * REPLACE` defeats projection pruning. A 2137-keypaper
+#' run hit a 28.7 GiB memory limit there; the same shape streamed fine on
+#' 0.12.0.
+#'
+#' So the collapse is *decided* on a narrow projection and only then applied:
+#'
+#' * **Pass 1** reads `(id, relation)` plus the synthetic `filename` /
+#'   `file_row_number` and aggregates to one row per work: the three role
+#'   flags, and the physical location of the row that wins the precedence
+#'   order. Parquet projection pushdown means the nested columns are never
+#'   decoded.
+#' * **Pass 2** scans the wide data once per relation and inner-joins that
+#'   narrow table on `(filename, file_row_number)`. A location identifies at
+#'   most one row and each work contributes exactly one location, so the join
+#'   is 1:1 -- one row per `id`, no fan-out. The wide columns only ever travel
+#'   the probe side, streaming into the parquet writer.
+#'
+#' Three details are load-bearing rather than stylistic:
+#'
+#' * **Every statement uses the same `read_parquet()` specification.**
+#'   `union_by_name = true` over *all* sources is what makes the three hive
+#'   partitions share one schema; `read_corpus()` opens `nodes/` with
+#'   `arrow::open_dataset()`, which infers the schema from the first fragment
+#'   and would break on a partition that differed. Relations are therefore
+#'   selected with `WHERE relation = ...`, never by narrowing the file list.
+#'   It costs nothing -- each file is constant in `relation`, so the predicate
+#'   prunes whole row groups on statistics -- and it also guarantees pass 1
+#'   and pass 2 see identical `filename` values.
+#' * **`hive_partitioning = false`.** `pro_query()` chunks the `openalex` id
+#'   filter exactly as it chunks `cites`/`cited_by`, so above 50 keypapers all
+#'   three `*_parquet` directories acquire `query=chunk_N/` levels and DuckDB
+#'   materialises `query` as a column -- the written node schema would then
+#'   depend on how many keypapers were supplied (57 columns at two seeds, 58
+#'   at 2137). Disabled, so it does not.
+#' * **No `PARTITION_BY`.** The partitioned writer buffers up to
+#'   `partitioned_write_flush_threshold` (524288) rows per thread with no byte
+#'   cap, which for rows this wide is gigabytes on its own -- a second OOM
+#'   that would have survived fixing the windows. Writing each partition
+#'   directory explicitly produces the identical layout with a plain
+#'   streaming writer.
+#'
 #' @param output Snowball output directory.
+#' @param con A DuckDB connection.
 #' @param verbose Print progress.
 #' @return Path to the nodes dataset.
 #' @noRd
@@ -277,7 +326,19 @@
   }
 
   sources <- file.path(output, paste0(rels, "_parquet"), "**", "*.parquet")
-  sources_sql <- paste(sprintf("'%s'", sources), collapse = ",\n          ")
+  sources_sql <- paste(sprintf("'%s'", sources), collapse = ",\n             ")
+
+  # The single scan specification shared by the probe and both passes.
+  read_all <- sprintf(
+    "read_parquet(
+             [%s],
+             union_by_name     = true,
+             hive_partitioning = false,
+             filename          = true,
+             file_row_number   = true
+           )",
+    sources_sql
+  )
 
   # referenced_works is a native list in API output but a JSON string in the
   # legacy snapshot corpus. inst/extract_edges.sql uses UNLIST(), which needs a
@@ -285,8 +346,8 @@
   # evaluated over thousands of node rows, and extract_edges.sql stays a
   # static, readable artifact.
   probe <- DBI::dbGetQuery(con, sprintf(
-    "SELECT column_type FROM (DESCRIBE SELECT referenced_works
-       FROM read_parquet([%s], union_by_name = true) LIMIT 0)", sources_sql
+    "SELECT column_type
+       FROM (DESCRIBE SELECT referenced_works FROM %s LIMIT 0)", read_all
   ))$column_type[[1L]]
 
   replace_refs <- if (grepl("\\[\\]$", probe)) {
@@ -295,71 +356,127 @@
     ", json_extract_string(referenced_works, '$[*]') AS referenced_works"
   }
 
-  # One row per work, keypaper winning over citing winning over cited.
-  #
-  # This mirrors openalexR::oa_snowball(), which does
-  # `nodes[!duplicated(nodes$id), ]` over `list(paper, citing, cited)` -- first
-  # occurrence wins, in that order. Without it the node set duplicates in two
-  # independent ways:
-  #
-  #   * ACROSS relations, on both paths. A keypaper that also cites another
-  #     keypaper appears twice, once with oa_input TRUE and once FALSE -- the
-  #     same work carrying contradictory metadata, and any join on id fans out.
-  #     Measured at 75 duplicated ids in a clustered 40-keypaper snowball.
-  #
-  #   * WITHIN a relation, on the API path only. pro_query() chunks cites and
-  #     cited_by at 50 ids into separate URLs, fetched and converted
-  #     independently; a work citing keypapers in two chunks is written twice.
-  #     Measured at 1.09x on `cited` for 60 keypapers. The snapshot path is
-  #     immune because get_citing()/get_cited() return unique ids.
-  #
-  # A plain DISTINCT would not do it: the duplicate rows differ in `relation`
-  # and `oa_input`, so both would survive.
-  #
-  # Collapsing to one row per work would lose the fact that a work can hold
-  # more than one relation at once, so the three roles are recorded as
-  # booleans BEFORE the collapse. `bool_or(...) OVER (PARTITION BY id)` sees
-  # every row for that work; the QUALIFY then keeps one of them.
-  #
-  # `relation` is retained as the precedence winner, so it stays a usable hive
-  # partition key and existing code keeps working -- but it is lossy by
-  # construction, and `is_keypaper` / `is_citing` / `is_cited` are the honest
-  # answer. A work that both cites a keypaper and is cited by one reports
-  # relation = "citing" and is_citing = is_cited = TRUE.
-  #
-  # Note `relation` is an openalexSnowball column: openalexR's nodes carry only
-  # `oa_input`. The precedence order matches its dedup order all the same, so
-  # the surviving row is the one openalexR would have kept.
-  sprintf(
-    "
-      COPY (
-        SELECT
-          * REPLACE (CAST(oa_input AS BOOLEAN) AS oa_input%s),
-          bool_or(relation = 'keypaper') OVER (PARTITION BY id) AS is_keypaper,
-          bool_or(relation = 'citing')   OVER (PARTITION BY id) AS is_citing,
-          bool_or(relation = 'cited')    OVER (PARTITION BY id) AS is_cited
-        FROM
-        read_parquet(
-          [%s],
-          union_by_name = true
-        )
-        QUALIFY row_number() OVER (
-          PARTITION BY id
-          ORDER BY CASE relation
-                     WHEN 'keypaper' THEN 1
-                     WHEN 'citing'   THEN 2
-                     ELSE                 3
-                   END
-        ) = 1
-      ) TO
-        '%s'
-        (FORMAT PARQUET, COMPRESSION SNAPPY, APPEND, PARTITION_BY 'relation')
-      ",
-    replace_refs, sources_sql, file.path(output, "nodes")
-  ) |>
-    DBI::dbExecute(conn = con)
+  on.exit(
+    try(DBI::dbExecute(con, "DROP TABLE IF EXISTS snowball_node_winners"),
+        silent = TRUE),
+    add = TRUE
+  )
 
-  normalizePath(file.path(output, "nodes"))
+  # -- Pass 1: one row per work, decided on four narrow columns --------------
+  #
+  # A work can hold more than one role at once, so the roles are recorded as
+  # booleans over every source row, BEFORE the collapse. They are the honest
+  # answer; `relation` keeps only the highest-precedence role and is lossy by
+  # construction (kept because it is the hive partition key).
+  #
+  # Duplicates arise in two independent ways, both handled here:
+  #   * ACROSS relations, on both paths -- a keypaper that also cites a
+  #     keypaper. Resolved by the precedence rank, mirroring
+  #     openalexR::oa_snowball()'s nodes[!duplicated(nodes$id), ] over
+  #     list(paper, citing, cited).
+  #   * WITHIN a relation, on the API path only -- pro_query() chunks
+  #     cites/cited_by at chunk_limit ids into separate URLs, so a work citing
+  #     keypapers in two chunks is written into two query=chunk_N directories.
+  #     Resolved by the (filename, file_row_number) tie-break.
+  #
+  # min() over a STRUCT compares field by field in declaration order, so this
+  # one aggregate is exactly `ORDER BY p, filename, file_row_number LIMIT 1`.
+  # It replaces all four window functions, and unlike the old QUALIFY -- whose
+  # ORDER BY ranked only the relation -- the tie-break is total, so the result
+  # is deterministic rather than whatever order the sort happened to produce.
+  DBI::dbExecute(con, sprintf(
+    "CREATE OR REPLACE TEMP TABLE snowball_node_winners AS
+     SELECT id, is_keypaper, is_citing, is_cited,
+            win.f AS win_file, win.r AS win_row
+     FROM (
+       SELECT
+         id,
+         bool_or(relation = 'keypaper') AS is_keypaper,
+         bool_or(relation = 'citing')   AS is_citing,
+         bool_or(relation = 'cited')    AS is_cited,
+         min(struct_pack(
+           p := CASE relation
+                  WHEN 'keypaper' THEN 1
+                  WHEN 'citing'   THEN 2
+                  ELSE                 3
+                END,
+           f := filename,
+           r := file_row_number
+         )) AS win
+       FROM %s
+       GROUP BY id
+     )", read_all
+  ))
+
+  # -- Pass 2: one streaming COPY per relation -------------------------------
+  #
+  # Expressed on the flags rather than on a stored winning relation, so the
+  # predicates stay correct when a relation was never collected (limit =
+  # "onlyCiting" / "onlyCited", or a snapshot that returned nothing for one).
+  winner_cond <- c(
+    keypaper = "is_keypaper",
+    citing   = "NOT is_keypaper AND is_citing",
+    cited    = "NOT is_keypaper AND NOT is_citing"
+  )
+
+  nodes_dir <- file.path(output, "nodes")
+  # Build into a sidecar and rename. A same-filesystem directory rename is
+  # atomic, which makes assembly idempotent (a re-run cannot append into an
+  # existing nodes/ and re-create the duplicate ids 0.12.1 removed) and means
+  # a killed process leaves .nodes.building, never a half-populated nodes/.
+  building <- file.path(output, ".nodes.building")
+  unlink(building, recursive = TRUE, force = TRUE)
+
+  for (rel in rels) {
+    # DuckDB writes no empty partition, and ?read_snowball documents that a
+    # relation partition can legitimately be absent once works are promoted by
+    # precedence; count first so that stays true.
+    n_rel <- DBI::dbGetQuery(con, sprintf(
+      "SELECT count(*) AS n FROM snowball_node_winners WHERE %s",
+      winner_cond[[rel]]
+    ))$n[[1L]]
+    if (n_rel == 0L) {
+      if (verbose) message("No works survive as relation = '", rel, "'.")
+      next
+    }
+
+    part_dir <- file.path(building, paste0("relation=", rel))
+    dir.create(part_dir, recursive = TRUE, showWarnings = FALSE)
+
+    # The join key is a physical row address, so the build side carries no id
+    # and no payload beyond three booleans. Filtering the winners inside the
+    # subquery keeps its estimated cardinality below the scan's, so the
+    # optimiser builds the hash table on the narrow side -- check with EXPLAIN
+    # if this is ever edited.
+    DBI::dbExecute(con, sprintf(
+      "COPY (
+         SELECT n.* EXCLUDE (relation, filename, file_row_number)
+                    REPLACE (CAST(oa_input AS BOOLEAN) AS oa_input%s),
+                w.is_keypaper, w.is_citing, w.is_cited
+         FROM %s n
+         JOIN (
+           SELECT win_file, win_row, is_keypaper, is_citing, is_cited
+           FROM snowball_node_winners
+           WHERE %s
+         ) w
+           ON n.filename = w.win_file
+          AND n.file_row_number = w.win_row
+         WHERE n.relation = '%s'
+       ) TO '%s' (FORMAT PARQUET, COMPRESSION SNAPPY)",
+      replace_refs, read_all, winner_cond[[rel]], rel,
+      file.path(part_dir, "data_0.parquet")
+    ))
+
+    if (verbose) message("Wrote ", n_rel, " nodes to relation = '", rel, "'.")
+  }
+
+  unlink(nodes_dir, recursive = TRUE, force = TRUE)
+  if (!file.rename(building, nodes_dir)) {
+    stop("Could not move assembled nodes into place: ", nodes_dir,
+         call. = FALSE)
+  }
+
+  normalizePath(nodes_dir)
 }
 
 #' Record how a snowball was produced

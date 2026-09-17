@@ -44,9 +44,11 @@
 pro_snowball_extract_edges <- function(
   nodes = NULL,
   output = tempfile(fileext = ".snowball"),
+  duckdb_config = NULL,
   verbose = FALSE
 ) {
   output <- normalizePath(output, mustWork = FALSE)
+  cfg <- .osb_resolve_duckdb_config(duckdb_config)
 
   edges <- file.path(output, "edges")
 
@@ -64,11 +66,15 @@ pro_snowball_extract_edges <- function(
 
   # Extract Edges -------------------------------------------------
 
-  con <- DBI::dbConnect(duckdb::duckdb())
+  duck <- .osb_con(cfg, tag = "edges", output = output)
+  con <- duck$con
 
-  on.exit(
-    DBI::dbDisconnect(con, shutdown = TRUE)
-  )
+  on.exit({
+    try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE)
+    if (!is.null(duck$temp_dir)) {
+      unlink(duck$temp_dir, recursive = TRUE, force = TRUE)
+    }
+  })
 
   arrow::open_dataset(nodes) |>
     duckdb::duckdb_register_arrow(
