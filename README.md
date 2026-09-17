@@ -2,150 +2,119 @@
 [![Lifecycle: maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 [![License: GPL-2+](https://img.shields.io/badge/License-GPL%20%3E%3D%202-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 [![Codecov](https://codecov.io/gh/openalexPro/openalexSnowball/graph/badge.svg)](https://app.codecov.io/gh/openalexPro/openalexSnowball)
+[![openalexSnowball status badge](https://openalexpro.r-universe.dev/openalexSnowball/badges/version)](https://openalexpro.r-universe.dev/openalexSnowball)
 
----
-title: "openalexPro README"
-date: today
-author: Rainer M Krug
-format: gfm
----
-[![name status badge](https://openalexpro.r-universe.dev/badges/:name)](https://openalexpro.r-universe.dev/)
+# openalexSnowball
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17453180.svg)](https://doi.org/10.5281/zenodo.17453180)
+Citation **snowball searches** on the OpenAlex graph, processed on disk.
 
-[![openalexPro status badge](https://openalexpro.r-universe.dev/openalexPro/badges/version)](https://openalexpro.r-universe.dev/openalexPro)
+Starting from a set of seed papers (*keypapers*), a snowball search follows
+citation links outward: the works that cite the seeds, and the works the seeds
+cite. openalexSnowball retrieves that neighbourhood and writes it as
+partitioned Apache Parquet, so the result is bounded by disk rather than by
+memory and can be queried without loading it.
 
+Two backends produce the same on-disk construct:
 
-# Disclaimer
-
-
-
-# LLM Usage Disclosure
-
-Code and documentation in this project have been generated with the assistance of the codex LLM tools in Positron. All content and code is based on conceptuaisayion by the authors and has been thoroughly reviewed and edited by humans afterwards.
-
-# Introduction
-
-This package builds on the package [openalexR](https://github.com/openalex/openalexR) but provides a more advanced approach to retrieve works from OpenAlex. In contrast to `openalexR`, which does all processing and conversions in memory. Doing all processing in memory has advantages for smaller smaller number of records retrieved from [OpenAlex](https://openalex.org), but limits te number of works which can be retrieved due to memory limitations. Even before the limit is reached, the often occurring new allocation of memory slows down the processing.
-In a first step, In contrast, `openalexPro` uses a on disc processing approach where the data is processed by number of records returned per call, i.e. a per page processing approach. 
-
-# Design Principles
-The retrieval of works and the initial processing / preparation can be split into these three steps:
-
-In a first step (`openalexPro::pro_request()`), each page from the API call is saved into an individual json file as returned by the API. The number of retrieved records is effectively only limited by the space on the drive where the json files are saved. As the complete responses including metadata are saved, one could end here and use custom made code to further process the responses, i.e. ingest it into a database. 
-
-In a second step (`openalexPro::pro_request_jsonl()`), the json files are processed on a per file basis using the `jq` command-line json processor. In this step the abstract text is re-constructed, a citation string for each work is generated, and optionally add a `page` field is added. It writes the resulting json file as a newline-delimited JSON (.jsonl), suitable for further processing using `arrow` or DuckDB.
-
-Int the third (and final) step (`openalexPro::pro_request_jsonl_parquet()`) converts the jsonl files into a parquet database partitioned by `page` using the `duckdb` package. Again, as the processing is done per page as well, the conversion is not limited by memory.
-
-
-This approach results in a stable pipeline which works for the retrieval of small as well as large to huge corpora. As the processing is done in per page (which have a maximum of 200 works), the scaling should be more or less linear  (in one application, more then 4 million works were retrieved without problems). 
-
-One point which needs to be taken into consideration when retrieving huge corpora, are rate limits by OpenAlex (see [here](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication) and [here](https://help.openalex.org/hc/en-us/articles/24397762024087-Pricing) for further details). 
-
-
-The final format which is used in this package to save the retrieved data is the `parquet` format which is space efficient and allows on disc processing, therefor there is no need to load the complete data into memory (see [here](https://parquet.apache.org/docs/) for a detailed description of the format as well as the [r-package `arrow`](https://arrow.apache.org/docs/r/)). To use the on disc processing in R, the `arrow` packages interfaces directly with `dplyr`, so that one can do a lot of processing before retrieving the actual data into memory (see the section on [dplyr and arrow](https://r4ds.hadley.nz/arrow.html#using-dplyr-with-arrow) as well more general the [arrow chapter](https://r4ds.hadley.nz/arrow.html) in Hadleys Wickhams [R for Data Science (2e) book]()https://r4ds.hadley.nz).
-
-# Quickstart
+- **API** — live queries against OpenAlex, via
+  [openalexPro](https://github.com/openalexPro/openalexPro).
+- **Snapshot** — entirely offline against a local OpenAlex snapshot, via
+  [openalexSnapshot](https://github.com/openalexPro/openalexSnapshot).
+  Reproducible, because the corpus is a fixed vintage.
 
 ## Installation
 
-The latest "stable" version is available via [r-universe](https://openalexpro.r-universe.dev/openalexPro)
-
 ```r
-install.packages('openalexPro', repos = c('https://openalexpro.r-universe.dev', 'https://cloud.r-project.org'))
+# stable, from r-universe
+install.packages(
+  "openalexSnowball",
+  repos = c("https://openalexpro.r-universe.dev", "https://cloud.r-project.org")
+)
+
+# development
+remotes::install_github("openalexPro/openalexSnowball", ref = "dev")
 ```
 
-The "development" version can be installed from github.
-**This is generally not recommended!**
-Unless you need bleeding edge functionality and can deal with changing function definitions, or whant to test new functionality, is this not recommended.
+## Usage
 
 ```r
-remotes::install_github("openalexPro/openalexPro", ref = "dev")
+library(openalexSnowball)
+
+out <- pro_snowball(
+  identifier = c("W2741809807", "W2755950973"),
+  output     = "./snowball"
+)
+
+sb <- read_snowball(out, return_data = TRUE, shorten_ids = TRUE)
+sb$nodes
+sb$edges
 ```
 
-## Basic Workflow for Searches
+Keypapers may be given as `identifier` (OpenAlex ids) or `doi`.
 
-First, the package needs to be loaded
+### Nodes
+
+`id` is a key: every work appears exactly once. Because a work can hold more
+than one role in the same search — a keypaper that cites another keypaper is
+both — the roles are three independent flags:
+
+| column | meaning |
+|---|---|
+| `is_keypaper` | one of the supplied keypapers |
+| `is_citing` | cites at least one keypaper |
+| `is_cited` | is cited by at least one keypaper |
+
+Any combination can be `TRUE`. `relation` is also present and is the hive
+partition key, but it records only the highest-precedence role
+(`keypaper` > `citing` > `cited`), so it is lossy — filter on the booleans.
+
+### Edges
+
+Three **mutually exclusive** types: `core` (at least one endpoint is a
+keypaper, both endpoints in the dataset), `extended` (both endpoints in the
+dataset, neither a keypaper), and `outside` (an endpoint is external).
+Selecting several is a union of disjoint sets.
+
+### Offline
 
 ```r
-library(openalexPro)
-```
-
-### 1. Define query (`openalexPro:pro_query()`)
-
-The query is defined using the function `openalexPro:pro_query()`. It follows the logic and arguments of `openalexR::oa_query()`. In addition to `openalexR::oa_query()`, the names of filters as well as fields selected for retrieval are verified before sending them to OpenAlex. 
-
-The supported filter names can be retrieved by running
-
-```r
-opt_filter_names()
-```
-
-and supported select fields by running
-
-```r
-opt_select_fields()
-```
-
-This defines a basic query.
-
-```r
-query <- pro_query(
-  title_and_abstract.search = "biodiversity AND conservation AND IPBES",
-  entity = "works"
+pro_snowball(
+  identifier = keypapers,
+  snapshot   = "/path/to/openalex/parquet",
+  select     = c("id", "doi", "title", "publication_year"),
+  output     = "./snowball_offline"
 )
 ```
 
-This returns a URL, which one can open in the browser.
+Needs the indexes built by `openalexSnapshot::build_corpus_index()` and
+`build_citation_index()`, plus `build_doi_index()` for DOI keypapers.
 
-If, however, for example 100 DOIs are given to be retrieved, the query is chunked into chunks of a maximum of the value of the argument `chunk_limit`, default is 50. In this case, the functions returns a `list()` with each element named `Chunk_x` and containing the URL as a character vector.
+### Larger searches
 
-### 2. Retrieving records (`openalexPro::pro_request()`)
+- **Pass all keypapers to one call.** Cost is dominated by scattered reads
+  over the corpus and the file set saturates, so ten times the keypapers costs
+  roughly twice the time — a loop pays that cost every iteration.
+- **Name the columns you need** with `select=`. Record retrieval is ~92% of an
+  offline run.
+- **Declare concurrency** if you run several searches at once, so they do not
+  each assume they own the machine:
+  `options(openalexSnowball.duckdb_config = list(concurrency = 4))`.
+- **`resume = TRUE`** continues an interrupted run. The default `output` is a
+  temporary directory that does not survive the session, so pass a persistent
+  `output =` if you want that.
 
-```r
-openalexPro::pro_request(
-  query_url = query,
-  output = "json",
-  verbose = TRUE
-)
-```
+See `vignette("Snowball")` and `?pro_snowball` for the full argument set.
 
-Will retrieve the records and save them into the folder specified in output. One important difference is now between the query being a single URL or a list: if it is a list, the `future` and `future.apply` packages are used to process the URLs in the list in parallel.
+## Related packages
 
-### 3. Processing `json` files (`openalexPro::pro_request_jsonl()`)
+| package | role |
+|---|---|
+| [openalexPro](https://github.com/openalexPro/openalexPro) | OpenAlex API access and JSON→Parquet conversion |
+| [openalexSnapshot](https://github.com/openalexPro/openalexSnapshot) | local snapshot indexing and offline lookup |
+| [openalexConvert](https://github.com/openalexPro/openalexConvert) | export to CSL-JSON, BibTeX, Zotero |
 
-This step prepares the json files for the final ingestion into a `parquet` database:
+## LLM usage disclosure
 
-```r
-openalex_jsonl_folder <- openalexPoro2::pro_request_jsonl(
-  input_json = "json_files",
-  output = json_extracted,
-  verbose = TRUE
-)
-```
-
-The resulting json files can be found in the folder as specified in `output`.
-
-### 4. Convert to `parquet` database (`openalexPro::pro_request_jsonl_parquet()`)
-
-Here the files are converted into a parquet page partitioned dataset saved as individual `parquet` files in the folder provided by the `output` argument.
-
-```r
-parquet <- "./parquet"
-openalexPro::pro_request_jsonl_parquet(
-  json_dir = json_extracted,
-  output = parquet,
-  verbose = TRUE
-)
-```
-
-### Convenience Function to Read the Retrieved Data (`openalexPro::read_corpus()`)
-The `read_corpus()` function reads the corpus either as a arrow `Dataset` object if `return_data = FALSE`, which is essentially metadata to the dataset,  or a `data.frame`, i.e. a data table, if `return_data = TRUE`, in which case the whole dataset is loaded into memory.
-
-
-## Snowball Searches
-
-Snowball search functionality has moved to the separate
-[`openalexSnowball`](https://github.com/openalexPro/openalexSnowball) package, which
-depends on `openalexPro` for the underlying pipeline.
+Code and documentation in this project have been generated with the assistance
+of LLM tools. All content is based on conceptualisation by the authors and has
+been reviewed and edited by humans afterwards.

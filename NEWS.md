@@ -378,6 +378,61 @@ Edges are unchanged: `inst/extract_edges.sql` already applied its own
 
 * `openalexSnapshot (>= 0.1.0)` added to Imports.
 
+# openalexSnowball 0.12.0
+
+(Released as 0.11.0 → 0.12.0 in quick succession; this entry covers both.)
+
+## Offline snowball searches: `pro_snowball(snapshot = )`
+
+A snowball can now be built entirely from a local OpenAlex snapshot, with no
+API access at all. The output construct is the same -- `nodes/` and `edges/`
+partitioned identically, readable by `read_snowball()` -- but results are
+frozen at the snapshot's vintage rather than live, and therefore reproducible.
+
+The backward direction comes from `referenced_works`, which every work
+carries. The forward direction cannot: `cited_by_api_url` is a URL and is
+useless offline. It is instead served by inverting `referenced_works` into a
+citation index (`openalexSnapshot::build_citation_index()`), which is what
+`get_citing()` reads.
+
+Requires the indexes built by `openalexSnapshot::build_corpus_index()` and
+`build_citation_index()`, plus `build_doi_index()` when keypapers are given as
+DOIs. Keypapers may be OpenAlex ids (short or long form) or DOIs (with or
+without a resolver), mixed freely in one call.
+
+## `workers`, `chunk_limit` and `select`
+
+* **`workers`** (default `1`, unchanged behaviour) parallelises the chunked
+  query URLs and the JSON→Parquet conversion on the API path, and the corpus
+  file reads on the snapshot path.
+* **`chunk_limit`** controls how many keypaper ids go into one `cites` /
+  `cited_by` filter URL. `NULL` (default) derives it from `workers`, aiming
+  for roughly twice as many chunks as workers so the scheduler has something
+  to balance -- the previous fixed 50 left most workers idle.
+* **`select`** (snapshot mode) names the node columns to keep. This is the
+  single biggest cost lever offline: works records carry ~51 columns of
+  deeply nested structs, and extracting all of them dominates the run.
+  `id` and `referenced_works` are always retained.
+
+## Provenance sidecar
+
+Every run writes `snowball_meta.parquet`: mode (`api` or `snapshot`), the
+snapshot path and the vintage of the citation index it was built from, the
+resolved keypapers, and package versions. Surfaced by
+`read_snowball(meta = TRUE)`; opt-in, so the default return shape is
+unchanged.
+
+Without it an offline snowball is indistinguishable on disk from an online
+one, and its vintage is invisible -- a reproducibility problem rather than a
+nicety.
+
+## Also
+
+* A keypaper that cannot be resolved now produces a clear error naming the
+  ids, instead of a bare DuckDB glob error mentioning a temporary path.
+* Minimum `openalexPro` raised to `>= 0.10.5`; new dependency on
+  `openalexSnapshot (>= 0.2.0)`.
+
 # openalexSnowball 0.10.1
 
 ## Breaking Changes
