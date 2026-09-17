@@ -1,7 +1,7 @@
 ---
 title: "Snowball Searches"
 vignette: >
-  %\VignetteIndexEntry{test}
+  %\VignetteIndexEntry{Snowball Searches}
   %\VignetteEngine{quarto::html}
   %\VignetteEncoding{UTF-8}
 format:
@@ -80,24 +80,93 @@ snowball$nodes
 snowball$edges
 ```
 
+# Node roles
+
+`id` is a key in `nodes/`: every work appears exactly once. A work can still
+hold more than one role — a keypaper that cites another keypaper is both —
+so the roles are three independent flags:
+
+- `is_keypaper` — one of the supplied keypapers
+- `is_citing` — cites at least one keypaper
+- `is_cited` — is cited by at least one keypaper
+
+Any combination can be `TRUE`, and at least one always is.
+
+```{r}
+#| label: roles
+
+subset(snowball$nodes, is_citing & is_cited)   # works in both directions
+subset(snowball$nodes, !is_keypaper)           # the snowballed neighbourhood
+```
+
+`relation` is also present and is the hive partition key, but it records only
+the highest-precedence role (`keypaper` > `citing` > `cited`). So
+`relation == "cited"` does **not** find every cited work — `is_cited` does.
+Filter on the booleans; use `relation` for partition pruning.
+
+# Offline: searching a local snapshot
+
+With a local OpenAlex snapshot and its indexes, the whole search runs without
+touching the API, and is reproducible against a fixed corpus vintage.
+
+```{r}
+#| label: snowball-snapshot
+
+pro_snowball(
+  identifier = c("W2741809807", "W2755950973"),
+  snapshot = "/path/to/openalex/parquet",
+  select = c("id", "doi", "title", "publication_year"),
+  output = "./snowball_offline"
+)
+```
+
+This needs the indexes built by `openalexSnapshot::build_corpus_index()` and
+`build_citation_index()`, plus `build_doi_index()` if keypapers are given as
+DOIs. `select=` is worth using: retrieving records is ~92% of the run, and
+naming only the columns you need cuts the bytes read substantially.
+
+# Large searches
+
+Two things matter once you have more than a handful of keypapers.
+
+**Pass them all to one call.** Cost is dominated by scattered reads across
+the corpus, and the set of files touched saturates — ten times the keypapers
+costs roughly twice the time, not ten times. A loop of separate calls re-pays
+that cost every iteration.
+
+**Declare how many searches you run at once.** Each DuckDB instance otherwise
+assumes it owns ~80% of the machine:
+
+```{r}
+#| label: concurrency
+
+options(openalexSnowball.duckdb_config = list(concurrency = 4))
+```
+
+`workers =` parallelises fetching and conversion. `resume = TRUE` continues an
+interrupted run instead of restarting it — note the default `output` lives in
+the session's temporary directory, so pass a persistent `output =` if you want
+to resume after a crash.
+
 # Output layout
 
-A snowball search writes a folder structure similar to the following:
+A completed search contains:
 
 ```
 snowball/
-├── cited_json/
-├── cited_jsonl/
-├── citing_json/
-├── citing_jsonl/
-├── edges/
-├── keypaper_json/
-├── keypaper_jsonl/
-├── keypaper_parquet/
-└── nodes/
+├── nodes/                     # partitioned by relation=
+├── edges/                     # partitioned by edge_type=
+├── snowball_meta.parquet      # provenance: mode, vintage, keypapers
+└── _snowball_run.parquet      # parameters, used by resume
 ```
+
+The `*_json/` and `*_parquet/` working directories exist only while the search
+runs and are removed once `edges/` is written; `keep_intermediates = TRUE`
+keeps them.
 
 # Tips
 
 - Use `return_data = FALSE` to keep large datasets on disk.
 - Use `edge_type = "core"` when you only need edges involving keypapers.
+  The three edge types are mutually exclusive, so combining them is a union
+  of disjoint sets rather than a widening.
