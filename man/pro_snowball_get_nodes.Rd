@@ -15,6 +15,9 @@ pro_snowball_get_nodes(
   select = NULL,
   endpoint = "https://api.openalex.org",
   duckdb_config = NULL,
+  resume = FALSE,
+  cleanup = TRUE,
+  prepared = FALSE,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -49,6 +52,17 @@ derives one from \code{workers}; see \code{pro_snowball()}.}
 
 \item{duckdb_config}{DuckDB settings for the assembly connection. See
 \code{\link[=snowball_duckdb_config]{snowball_duckdb_config()}}.}
+
+\item{resume}{Keep an existing \code{output} and continue from where a previous
+run stopped, instead of deleting it. Default \code{FALSE}.}
+
+\item{cleanup}{Remove the intermediate \verb{*_json} / \verb{*_parquet} directories
+once the nodes are assembled. Default \code{TRUE}. \code{\link[=pro_snowball]{pro_snowball()}} passes
+\code{FALSE} and cleans up after edge extraction instead, so that a failure
+there is still resumable.}
+
+\item{prepared}{Internal. \code{TRUE} means the caller has already created or
+cleaned \code{output} and this function must not delete it.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

@@ -91,7 +91,8 @@
 
 .nodes_from_api <- function(keypaper_ids, output, limit, verbose, workers = 1L,
                             chunk_limit = NULL,
-                            endpoint = "https://api.openalex.org") {
+                            endpoint = "https://api.openalex.org",
+                            resume = FALSE) {
   chunk_limit <- .chunk_limit_for(length(keypaper_ids), workers, chunk_limit)
   if (verbose && workers > 1L) {
     message("Using chunk_limit = ", chunk_limit, " for ", workers, " workers (",
@@ -108,12 +109,14 @@
       openalexPro::pro_request(
         output = file.path(output, "citing_json"),
         workers = workers,
+        resume = resume,
         verbose = verbose, progress = verbose
       ) |>
       openalexPro::pro_request_parquet(
         output = file.path(output, "citing_parquet"),
         add_columns = list(oa_input = "FALSE", relation = "citing"),
         workers = .par_workers(workers),
+        resume = resume,
         verbose = verbose
       )
   }
@@ -127,12 +130,14 @@
       openalexPro::pro_request(
         output = file.path(output, "cited_json"),
         workers = workers,
+        resume = resume,
         verbose = verbose, progress = verbose
       ) |>
       openalexPro::pro_request_parquet(
         output = file.path(output, "cited_parquet"),
         add_columns = list(oa_input = "FALSE", relation = "cited"),
         workers = .par_workers(workers),
+        resume = resume,
         verbose = verbose
       )
   }

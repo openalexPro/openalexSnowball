@@ -86,6 +86,61 @@ setting one does not silently discard the others. Unknown field names are an
 error. `partitioned_write_max_open_files` is deliberately left at DuckDB's
 100: `nodes/` and `edges/` have three partitions each.
 
+## `resume = TRUE`: a failed run no longer costs the fetching
+
+The run that motivated this release lost about six hours of completed API
+fetching. The data was not destroyed by the crash -- the cleanup `unlink()`s
+run *after* assembly, so every intermediate directory was still on disk -- but
+`output` defaults to `tempfile()`, which lives under `tempdir()` and goes away
+when the R session ends.
+
+So the fix is mostly about not throwing the checkpoint away:
+
+* `pro_snowball(resume = TRUE)` keeps an existing `output` instead of deleting
+  and recreating it, and skips stages that a `.osb_done/` marker records as
+  complete. Within the fetch stage only the query chunks that did not finish
+  are re-requested, via `openalexPro::pro_request(resume = )`.
+* Cleanup of the `*_json` / `*_parquet` directories moved from the end of
+  `pro_snowball_get_nodes()` to after edge extraction, so a failure in
+  *edges* is resumable too. `keep_intermediates = TRUE` suppresses it
+  entirely. Peak disk is correspondingly higher, since the intermediates now
+  coexist with `nodes/` and `edges/`.
+* A `_snowball_run.parquet` manifest records the parameters that define which
+  snowball this is. Resuming with a different keypaper set, `snapshot`,
+  `endpoint`, `max_results` or `select` is a hard error naming the field --
+  it would otherwise splice two snowballs into one output, silently.
+  `workers`, `verbose` and `duckdb_config` may differ freely, which is the
+  point: "resume with fewer workers and a smaller memory limit" is the usual
+  reason to resume at all.
+* Failures are re-thrown naming the stage, the output path, the completed
+  stages and the exact resume call -- and warning, when the path is under
+  `tempdir()`, that it will not survive the session. That warning is the one
+  thing that would have saved the six hours.
+
+`resume = FALSE` remains the default and behaves exactly as before.
+
+## Edge extraction no longer goes through the Arrow bridge
+
+`extract_edges.sql` scans `nodes` six times -- `edges_basic`, `keypaper`, and
+four joins. Registering the node set with `duckdb_register_arrow()` meant
+DuckDB could not push projections into any of those scans, so a ~51-column
+node set with nested structs was pulled across the bridge repeatedly. It is
+now a native `read_parquet` view.
+
+The four joins test membership only, so they now join `(SELECT id FROM ...)`
+rather than the whole node row, keeping the hash-join build sides narrow. And
+the outer `SELECT DISTINCT *` is gone: `edges` is built on `edges_basic`,
+which already applies `DISTINCT`, so that was a second hash aggregate over
+the entire exploded edge set for nothing.
+
+## The keypaper fetch is parallel
+
+`pro_query()` chunks the `openalex` id filter exactly as it chunks
+`cites`/`cited_by`, so a large keypaper set becomes many URLs -- about 43 for
+2137 seeds. They were fetched *and* converted strictly sequentially even at
+`workers = 12`, straight on the critical path. Both now honour `workers`, and
+the chunk size is derived from it as it already was for the expansions.
+
 ## `ORDER BY id` when reading resolved keypapers
 
 The keypaper id vector is joined into `pro_query()`'s filter URLs, so its
