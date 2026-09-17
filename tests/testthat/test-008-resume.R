@@ -140,7 +140,12 @@ test_that("a failure names the output, the stage and how to resume", {
     error = function(e) conditionMessage(e)
   )
   expect_match(err, "Snowball failed during stage")
-  expect_match(err, out, fixed = TRUE)
+  # basename, not the full path: pro_snowball() reports normalizePath(output),
+  # which on Windows returns backslashes while withr::local_tempdir() hands
+  # back forward slashes, so comparing the whole string fails there for no
+  # interesting reason.
+  expect_match(err, basename(out), fixed = TRUE)
+  expect_match(err, "Intermediate results are preserved at")
   expect_match(err, "resume = TRUE")
   # and it must say so when the work is about to vanish with the session
   expect_match(err, "tempdir")
