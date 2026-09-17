@@ -111,8 +111,12 @@ test_that("memory and thread budgets divide by the declared concurrency", {
   skip_if(is.na(.osb_total_ram_bytes()), "could not determine RAM")
   one  <- .osb_parse_bytes(.osb_auto_memory(1L))
   four <- .osb_parse_bytes(.osb_auto_memory(4L))
-  expect_gt(one, four)
-  # never below the 1 GB floor
+
+  # Dividing by concurrency, but never below the 1 GB floor -- and on a small
+  # CI runner the floor is what you get, so asserting plain proportionality
+  # would pass locally and fail there.
+  expect_equal(four, max(1024^3, one / 4), tolerance = 0.02)
+  expect_gte(one, four)
   expect_gte(.osb_parse_bytes(.osb_auto_memory(10000L)), 1024^3)
   expect_gte(.osb_auto_threads(1L), .osb_auto_threads(8L))
   expect_gte(.osb_auto_threads(10000L), 1L)
