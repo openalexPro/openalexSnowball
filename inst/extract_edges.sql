@@ -6,7 +6,9 @@
 CREATE OR REPLACE VIEW keypaper AS
 SELECT *
 FROM nodes
-WHERE relation = 'keypaper';
+WHERE is_keypaper;   -- not relation = 'keypaper': `relation` is the
+                     -- precedence winner and would silently break if
+                     -- that ordering ever changed; is_keypaper cannot.
 --
 -- all edges, even outgoing ones
 --
@@ -19,6 +21,11 @@ FROM (
     );
 --
 -- Create edges view including edge_type
+--
+-- The four joins test membership only -- nothing but `id` is read from them,
+-- and the CASE below only asks whether the match was NULL. Projecting to
+-- `id` keeps the four hash-join build sides narrow instead of carrying the
+-- whole ~51-column node row four times over.
 --
 CREATE OR REPLACE VIEW edges AS
 SELECT edges_basic.*,
@@ -34,7 +41,7 @@ SELECT edges_basic.*,
         ELSE 'outside'
     END AS edge_type
 FROM edges_basic
-    LEFT JOIN keypaper AS kpfrom ON edges_basic.from = kpfrom.id
-    LEFT JOIN keypaper AS kpto ON edges_basic.to = kpto.id
-    LEFT JOIN nodes AS nfrom ON edges_basic.from = nfrom.id
-    LEFT JOIN nodes AS nto ON edges_basic.to = nto.id
+    LEFT JOIN (SELECT id FROM keypaper) AS kpfrom ON edges_basic.from = kpfrom.id
+    LEFT JOIN (SELECT id FROM keypaper) AS kpto ON edges_basic.to = kpto.id
+    LEFT JOIN (SELECT id FROM nodes) AS nfrom ON edges_basic.from = nfrom.id
+    LEFT JOIN (SELECT id FROM nodes) AS nto ON edges_basic.to = nto.id

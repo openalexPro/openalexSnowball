@@ -69,32 +69,45 @@ test_that("pro_snowball edges have expected shape", {
 
 # ── read_snowball() edge_type variants ────────────────────────────────────────
 
-test_that("read_snowball with edge_type = 'core'", {
-  expect_snapshot(
-    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
-                  edge_type = "core")
+# These used to snapshot print(read_snowball(...)) in full, which includes the
+# type header of the nested `authorships` struct. That header is produced by
+# DuckDB's JSON type inference, and its field order is not stable across
+# DuckDB versions -- local 1.5.4 renders
+# `author_position, author, institutions, ...` where CI's 1.5.5 renders
+# `author, author_position, affiliations, ...`. Identical data, different
+# rendering, and the snapshot broke on the difference.
+#
+# So snapshot what these tests are actually about: the edge set selected by
+# `edge_type`, plus the shape of the result. The node schema is covered by
+# "pro_snowball nodes have expected shape" (sorted names) and the node content
+# by "pro_snowball nodes content (id / oa_input / relation)"; nothing is lost
+# here except a dependency on how DuckDB spells a nested type this week.
+snap_snowball <- function(...) {
+  sb <- read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE, ...)
+  list(
+    n_nodes   = nrow(sb$nodes),
+    n_edges   = nrow(sb$edges),
+    node_cols = sort(names(sb$nodes)),
+    edges     = as.data.frame(
+      dplyr::arrange(sb$edges, .data$edge_type, .data$from, .data$to)
+    )
   )
+}
+
+test_that("read_snowball with edge_type = 'core'", {
+  expect_snapshot(snap_snowball(edge_type = "core"))
 })
 
 test_that("read_snowball with edge_type = 'extended'", {
-  expect_snapshot(
-    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
-                  edge_type = "extended")
-  )
+  expect_snapshot(snap_snowball(edge_type = "extended"))
 })
 
 test_that("read_snowball with edge_type = c('extended', 'core')", {
-  expect_snapshot(
-    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
-                  edge_type = c("extended", "core"))
-  )
+  expect_snapshot(snap_snowball(edge_type = c("extended", "core")))
 })
 
 test_that("read_snowball with edge_type = 'outside'", {
-  expect_snapshot(
-    read_snowball(output_dir, return_data = TRUE, shorten_ids = TRUE,
-                  edge_type = "outside")
-  )
+  expect_snapshot(snap_snowball(edge_type = "outside"))
 })
 
 # ── Content ───────────────────────────────────────────────────────────────────
