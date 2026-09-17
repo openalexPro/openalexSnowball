@@ -23,6 +23,7 @@ Imports:
 Additional_repositories:
     https://openalexpro.r-universe.dev
 Suggests:
+    future,
     keyring,
     knitr,
     openalexR (>= 1.4.0),

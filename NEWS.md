@@ -141,6 +141,26 @@ the entire exploded edge set for nothing.
 `workers = 12`, straight on the critical path. Both now honour `workers`, and
 the chunk size is derived from it as it already was for the expansions.
 
+## A concurrency test
+
+Nothing in the suite ever ran two `pro_snowball()` calls at once, which is
+how the shared-spill-directory bug survived in two packages: DuckDB's
+`temp_directory` defaults to `.tmp` *relative to the working directory*, so
+concurrent callers write colliding `duckdb_temp_storage_*.tmp` files into one
+place. openalexSnapshot documents that hazard for its index builders; neither
+the snowball path nor openalexSnapshot's own parallel lookup guarded it.
+
+`test-005` now starts two overlapping snapshot snowballs under
+`future::multisession(workers = 2)` -- both futures created before either is
+resolved -- and requires each to produce a complete, correct result matching
+a sequential reference. `future` is added to Suggests. Runs offline in a few
+seconds.
+
+It deliberately does *not* assert that no `.tmp` appeared: the fixture is 12
+works and never spills, so that check was verified to pass even with DuckDB's
+default restored, i.e. it asserted nothing. The private-spill invariant is
+asserted directly in `test-007` instead.
+
 ## `ORDER BY id` when reading resolved keypapers
 
 The keypaper id vector is joined into `pro_query()`'s filter URLs, so its

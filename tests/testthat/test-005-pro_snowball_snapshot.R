@@ -416,3 +416,67 @@ test_that("snapshot mode ignores endpoint and makes no request", {
   expect_gt(nrow(nodes), 0L)
   expect_true(all(c("is_keypaper", "is_citing", "is_cited") %in% names(nodes)))
 })
+
+test_that("concurrent snapshot snowballs do not corrupt each other", {
+  # The regression test for the failure mode this package hit twice.
+  #
+  # DuckDB's `temp_directory` defaults to `.tmp` *relative to the working
+  # directory*, so two pro_snowball() calls started from the same directory
+  # used to spill into one place and write colliding
+  # duckdb_temp_storage_*.tmp files. openalexSnapshot documents that hazard
+  # for its index builders; the snowball path did not guard it, and neither
+  # did openalexSnapshot's own parallel lookup. Nothing in the suite would
+  # have caught either, because every other test runs one call at a time.
+  skip_on_cran()
+  skip_if_not_installed("future")
+
+  fx <- make_snapshot_fixture()
+
+  # Sequential reference to compare against.
+  ref <- read_snowball(
+    pro_snowball(identifier = fx$ids, snapshot = fx$root,
+                 output = withr::local_tempdir(), verbose = FALSE),
+    return_data = TRUE
+  )
+
+  # Run from a known working directory so a stray `.tmp` is detectable, and
+  # start the workers from there.
+  wd <- withr::local_tempdir()
+  withr::local_dir(wd)
+
+  outs <- file.path(withr::local_tempdir(), c("run_a", "run_b"))
+  old_plan <- future::plan(future::multisession, workers = 2)
+  withr::defer(future::plan(old_plan))
+
+  # Both futures are created before either is resolved, so they really do
+  # overlap rather than running back to back.
+  fa <- future::future(
+    openalexSnowball::pro_snowball(identifier = fx$ids, snapshot = fx$root,
+                                   output = outs[[1L]], verbose = FALSE),
+    seed = TRUE
+  )
+  fb <- future::future(
+    openalexSnowball::pro_snowball(identifier = fx$ids, snapshot = fx$root,
+                                   output = outs[[2L]], verbose = FALSE),
+    seed = TRUE
+  )
+  paths <- c(future::value(fa), future::value(fb))
+
+  for (p in paths) {
+    got <- read_snowball(p, return_data = TRUE)
+    expect_equal(nrow(got$nodes), nrow(ref$nodes))
+    expect_setequal(got$nodes$id, ref$nodes$id)
+    expect_equal(nrow(got$edges), nrow(ref$edges))
+    expect_equal(nrow(got$nodes), dplyr::n_distinct(got$nodes$id))
+  }
+
+  # Deliberately NOT asserting that no `.tmp` appeared in `wd`: verified by
+  # experiment that this fixture never spills at all, even with DuckDB's own
+  # working-directory-relative temp_directory restored, so such a check would
+  # pass either way and assert nothing. What this test does establish is that
+  # two overlapping runs each produce a complete, correct, independent result
+  # -- which is what clobbered spill or a shared output would break. The
+  # private-spill-directory invariant itself is asserted directly in
+  # test-007 ("spill directories are private per call and per stage").
+  expect_false(identical(paths[[1L]], paths[[2L]]))
+})
