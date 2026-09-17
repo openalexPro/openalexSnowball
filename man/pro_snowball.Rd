@@ -14,6 +14,9 @@ pro_snowball(
   chunk_limit = NULL,
   select = NULL,
   endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
+  resume = FALSE,
+  keep_intermediates = FALSE,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -101,6 +104,40 @@ a self-hosted instance carries no rate limit, which is what makes large
 
 Trailing slashes are stripped. Ignored in snapshot mode, where no request
 is made.}
+
+\item{duckdb_config}{DuckDB settings for the two connections this function
+opens. \code{NULL} (the default) uses \code{\link[=snowball_duckdb_config]{snowball_duckdb_config()}}'s defaults,
+optionally overridden field-by-field by
+\code{getOption("openalexSnowball.duckdb_config")}.
+
+The defaults matter at scale. DuckDB's own are a \code{memory_limit} of ~80\%
+of system RAM \strong{per instance} and a spill directory relative to the
+working directory -- both wrong when several \code{pro_snowball()} calls run
+from a worker pool. Declare how many you run at once and the budget is
+divided accordingly:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{options(openalexSnowball.duckdb_config = list(concurrency = 4))
+}\if{html}{\out{</div>}}}
+
+\item{resume}{Continue an interrupted run in an existing \code{output} instead
+of deleting it. Default \code{FALSE}, which preserves the previous behaviour
+exactly.
+
+Stages already completed are skipped, and within the fetch stage only
+the query chunks that did not finish are re-requested. Resuming with
+different keypapers, \code{snapshot}, \code{endpoint}, \code{max_results} or \code{select}
+is an error: it would merge two different snowballs into one output.
+\code{workers}, \code{verbose} and \code{duckdb_config} may differ freely, which is the
+point -- "resume with fewer workers and a smaller memory limit" is the
+usual reason to resume.
+
+Note that the default \code{output} lives under \code{\link[=tempdir]{tempdir()}} and is removed
+when the R session ends, so cross-session resume needs an explicit,
+persistent \verb{output =}.}
+
+\item{keep_intermediates}{Keep the \verb{*_json} / \verb{*_parquet} working
+directories instead of deleting them once \verb{edges/} is written. Default
+\code{FALSE}. Useful for debugging or for repeated resumes.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

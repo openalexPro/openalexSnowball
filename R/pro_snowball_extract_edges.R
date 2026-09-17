@@ -3,6 +3,8 @@
 #' @param nodes Path to the nodes parquet dataset
 #' @param output output folder, in which the parquet database containing the
 #'   edges called `edges` will be savedp default: temporary directory.
+#' @param duckdb_config DuckDB settings for the edge-extraction connection.
+#'   See [snowball_duckdb_config()].
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
 #'
@@ -44,9 +46,11 @@
 pro_snowball_extract_edges <- function(
   nodes = NULL,
   output = tempfile(fileext = ".snowball"),
+  duckdb_config = NULL,
   verbose = FALSE
 ) {
   output <- normalizePath(output, mustWork = FALSE)
+  cfg <- .osb_resolve_duckdb_config(duckdb_config)
 
   edges <- file.path(output, "edges")
 
@@ -64,17 +68,26 @@ pro_snowball_extract_edges <- function(
 
   # Extract Edges -------------------------------------------------
 
-  con <- DBI::dbConnect(duckdb::duckdb())
+  duck <- .osb_con(cfg, tag = "edges", output = output)
+  con <- duck$con
 
-  on.exit(
-    DBI::dbDisconnect(con, shutdown = TRUE)
-  )
+  on.exit({
+    try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE)
+    if (!is.null(duck$temp_dir)) {
+      unlink(duck$temp_dir, recursive = TRUE, force = TRUE)
+    }
+  })
 
-  arrow::open_dataset(nodes) |>
-    duckdb::duckdb_register_arrow(
-      conn = con,
-      name = "nodes"
-    )
+  # A native parquet view, not duckdb_register_arrow(). extract_edges.sql
+  # scans `nodes` six times (edges_basic, keypaper, and four joins); through
+  # the Arrow bridge DuckDB cannot push projections into those scans, so a
+  # ~51-column node set with nested structs was pulled across it repeatedly.
+  # read_parquet gives real projection pushdown and spill-aware joins.
+  DBI::dbExecute(con, sprintf(
+    "CREATE OR REPLACE VIEW nodes AS
+       SELECT * FROM read_parquet('%s/**/*.parquet', hive_partitioning = true)",
+    nodes
+  ))
 
   sql_text <- system.file("extract_edges.sql", package = "openalexSnowball") |>
     readLines() |>
@@ -83,9 +96,12 @@ pro_snowball_extract_edges <- function(
 
   # Create edges ---------------------------------------------------
 
+  # No outer DISTINCT: `edges` is built on edges_basic, which already applies
+  # SELECT DISTINCT, and edge_type is functionally determined by (from, to).
+  # The extra hash aggregate over the whole exploded edge set bought nothing.
   paste0(
     "COPY ( ",
-    "   SELECT DISTINCT ",
+    "   SELECT ",
     "       * ",
     "   FROM ",
     "       edges",

@@ -1,3 +1,159 @@
+# openalexSnowball 0.15.0
+
+## Bug fix: `pro_snowball()` ran out of memory assembling large node sets
+
+A 2137-keypaper run failed after 5.7 hours with
+`Out of Memory Error: could not allocate block of size 256.0 KiB
+(28.7 GiB/28.7 GiB used)`.
+
+This was a regression. Through 0.12.0 `.assemble_nodes()` was a pure
+streaming scan-and-write. 0.12.1 added `QUALIFY row_number() OVER (PARTITION
+BY id ...)` to make `id` a key, and 0.13.0 added three `bool_or(...) OVER
+(PARTITION BY id)` for the role flags -- four *blocking* window operators.
+DuckDB materialises a window's entire input before emitting a row, and
+`SELECT * REPLACE` defeats projection pruning, so all ~51 wide nested works
+columns (`abstract`, `abstract_inverted_index` as `MAP(VARCHAR, BIGINT[])`,
+`authorships`, `locations`, `topics`) were carried through the
+hash-partition. `select=` is snapshot-only, so the API path projected
+nothing.
+
+Assembly is now two passes, and the wide columns never enter a blocking
+operator:
+
+* **Pass 1** aggregates `(id, relation)` plus the synthetic `filename` /
+  `file_row_number` into one row per work -- the three role flags, and the
+  physical address of the row that wins the precedence order. A single
+  `min(struct_pack(precedence, filename, file_row_number))` replaces all four
+  windows, because STRUCT comparison is lexicographic by field position.
+  Projection pushdown means the nested columns are never decoded.
+* **Pass 2** scans the wide data once per relation and inner-joins that
+  narrow table on the row address. Each work contributes exactly one address,
+  so the join is 1:1 and the wide columns only travel the streaming probe
+  side.
+
+Output semantics are unchanged: one row per `id`, relation precedence
+`keypaper` > `citing` > `cited`, and the `is_*` flags computed over every
+source row.
+
+A second hazard that would have survived fixing the windows is also gone:
+`PARTITION_BY` buffers up to `partitioned_write_flush_threshold` (524,288)
+rows *per thread* with no byte cap, which for rows this wide is gigabytes on
+its own. Each relation is now written to `nodes/relation=<rel>/` explicitly --
+identical layout, plain streaming writer.
+
+### Two behaviour changes that follow
+
+**The de-duplication tie-break is now deterministic.** The old `ORDER BY`
+ranked only the relation, so which of several copies of a work survived was
+whatever order the sort happened to produce. It is now
+`(precedence, filename, file_row_number)`, a total order. Where a work was
+fetched twice with differing metadata, a different -- but stable -- copy may
+now win.
+
+**`nodes` no longer carries a `query` column, and the schema no longer
+depends on the keypaper count.** Above 50 keypapers `pro_query()` chunks the
+id filter, so the intermediate directories acquire `query=chunk_N/` levels
+and DuckDB materialised `query` as a column: 57 columns at two seeds, 58 at
+2137. Assembly now reads with `hive_partitioning = false`. The column was
+arbitrary provenance anyway -- after de-duplication it named whichever chunk
+the surviving row happened to come from.
+
+## DuckDB connections are configured rather than left at their defaults
+
+New `snowball_duckdb_config()` and a `duckdb_config` argument on
+`pro_snowball()`, `pro_snowball_get_nodes()` and
+`pro_snowball_extract_edges()`; also settable session-wide with
+`options(openalexSnowball.duckdb_config = )`.
+
+Both connections were bare `dbConnect(duckdb::duckdb())`, so DuckDB's
+defaults applied -- including a `memory_limit` of ~80% of system RAM **per
+instance** and a `temp_directory` of `.tmp` *relative to the working
+directory*. Neither suits a package people run several of at once: three
+concurrent callers on a 36 GB machine promised 86 GB, and they all spilled
+into one directory, which is the colliding-spill-file corruption
+openalexSnapshot documents.
+
+Defaults now: `preserve_insertion_order = FALSE`, a private per-call,
+per-stage spill directory under `tempdir()`, and a memory budget of half of
+physical RAM divided by a declared `concurrency`:
+
+```r
+options(openalexSnowball.duckdb_config = list(concurrency = 4))
+```
+
+Settings resolve **per field** -- argument over option over default -- so
+setting one does not silently discard the others. Unknown field names are an
+error. `partitioned_write_max_open_files` is deliberately left at DuckDB's
+100: `nodes/` and `edges/` have three partitions each.
+
+## `resume = TRUE`: a failed run no longer costs the fetching
+
+The run that motivated this release lost about six hours of completed API
+fetching. The data was not destroyed by the crash -- the cleanup `unlink()`s
+run *after* assembly, so every intermediate directory was still on disk -- but
+`output` defaults to `tempfile()`, which lives under `tempdir()` and goes away
+when the R session ends.
+
+So the fix is mostly about not throwing the checkpoint away:
+
+* `pro_snowball(resume = TRUE)` keeps an existing `output` instead of deleting
+  and recreating it, and skips stages that a `.osb_done/` marker records as
+  complete. Within the fetch stage only the query chunks that did not finish
+  are re-requested, via `openalexPro::pro_request(resume = )`.
+* Cleanup of the `*_json` / `*_parquet` directories moved from the end of
+  `pro_snowball_get_nodes()` to after edge extraction, so a failure in
+  *edges* is resumable too. `keep_intermediates = TRUE` suppresses it
+  entirely. Peak disk is correspondingly higher, since the intermediates now
+  coexist with `nodes/` and `edges/`.
+* A `_snowball_run.parquet` manifest records the parameters that define which
+  snowball this is. Resuming with a different keypaper set, `snapshot`,
+  `endpoint`, `max_results` or `select` is a hard error naming the field --
+  it would otherwise splice two snowballs into one output, silently.
+  `workers`, `verbose` and `duckdb_config` may differ freely, which is the
+  point: "resume with fewer workers and a smaller memory limit" is the usual
+  reason to resume at all.
+* Failures are re-thrown naming the stage, the output path, the completed
+  stages and the exact resume call -- and warning, when the path is under
+  `tempdir()`, that it will not survive the session. That warning is the one
+  thing that would have saved the six hours.
+
+`resume = FALSE` remains the default and behaves exactly as before.
+
+## Edge extraction no longer goes through the Arrow bridge
+
+`extract_edges.sql` scans `nodes` six times -- `edges_basic`, `keypaper`, and
+four joins. Registering the node set with `duckdb_register_arrow()` meant
+DuckDB could not push projections into any of those scans, so a ~51-column
+node set with nested structs was pulled across the bridge repeatedly. It is
+now a native `read_parquet` view.
+
+The four joins test membership only, so they now join `(SELECT id FROM ...)`
+rather than the whole node row, keeping the hash-join build sides narrow. And
+the outer `SELECT DISTINCT *` is gone: `edges` is built on `edges_basic`,
+which already applies `DISTINCT`, so that was a second hash aggregate over
+the entire exploded edge set for nothing.
+
+## The keypaper fetch is parallel
+
+`pro_query()` chunks the `openalex` id filter exactly as it chunks
+`cites`/`cited_by`, so a large keypaper set becomes many URLs -- about 43 for
+2137 seeds. They were fetched *and* converted strictly sequentially even at
+`workers = 12`, straight on the critical path. Both now honour `workers`, and
+the chunk size is derived from it as it already was for the expansions.
+
+## `ORDER BY id` when reading resolved keypapers
+
+The keypaper id vector is joined into `pro_query()`'s filter URLs, so its
+order determines the requests. It came straight out of an unordered
+`SELECT id`, which DuckDB makes no promise about and which
+`preserve_insertion_order = FALSE` would make genuinely nondeterministic.
+Sorting makes the URLs a pure function of the *set* of keypapers.
+
+This changed the recorded request URLs, so `tests/fixtures/vcr/pro_snowball.yml`
+gained the sorted-order episodes. The two unsorted-order episodes are now
+unreachable; the responses are identical either way (verified: same 46 x 57
+nodes and the same edge counts).
+
 # openalexSnowball 0.14.0
 
 ## `endpoint` argument: target a self-hosted OpenAlex

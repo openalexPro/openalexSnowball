@@ -17,6 +17,16 @@
 #' @param select Snapshot mode only: node columns to keep. See `pro_snowball()`.
 #' @param endpoint API mode only: base URL of the OpenAlex API. See
 #'   `pro_snowball()`.
+#' @param duckdb_config DuckDB settings for the assembly connection. See
+#'   [snowball_duckdb_config()].
+#' @param resume Keep an existing `output` and continue from where a previous
+#'   run stopped, instead of deleting it. Default `FALSE`.
+#' @param prepared Internal. `TRUE` means the caller has already created or
+#'   cleaned `output` and this function must not delete it.
+#' @param cleanup Remove the intermediate `*_json` / `*_parquet` directories
+#'   once the nodes are assembled. Default `TRUE`. [pro_snowball()] passes
+#'   `FALSE` and cleans up after edge extraction instead, so that a failure
+#'   there is still resumable.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -40,11 +50,16 @@ pro_snowball_get_nodes <- function(
   chunk_limit = NULL,
   select = NULL,
   endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
+  resume = FALSE,
+  cleanup = TRUE,
+  prepared = FALSE,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
   workers <- .check_workers(workers)
   endpoint <- .check_endpoint(endpoint)
+  cfg <- .osb_resolve_duckdb_config(duckdb_config)
   if (is.null(limit)) {
     limit <- "none"
   }
@@ -59,7 +74,10 @@ pro_snowball_get_nodes <- function(
 
   output <- normalizePath(output, mustWork = FALSE)
 
-  if (dir.exists(output)) {
+  # `prepared = TRUE` means the caller owns the directory lifecycle and has
+  # already created or cleaned it -- pro_snowball() does, and it writes the
+  # run manifest there before calling us, which this wipe would delete.
+  if (dir.exists(output) && !isTRUE(resume) && !isTRUE(prepared)) {
     if (verbose) {
       message(
         "Deleting and recreating `",
@@ -69,14 +87,30 @@ pro_snowball_get_nodes <- function(
     }
     unlink(output, recursive = TRUE)
   }
-  dir.create(output, recursive = TRUE)
+  dir.create(output, recursive = TRUE, showWarnings = FALSE)
+
+  # Nothing to do if a previous run already assembled the nodes.
+  if (isTRUE(resume) && .osb_stage_done(output, "nodes") &&
+      dir.exists(file.path(output, "nodes"))) {
+    if (verbose) message("Resuming: nodes/ already assembled.")
+    return(normalizePath(file.path(output, "nodes")))
+  }
 
   # Create and setup in memory DuckDB --------------------------------------
 
-  con <- DBI::dbConnect(duckdb::duckdb())
+  # Configured rather than bare: see R/utils_duckdb.R for why DuckDB's
+  # defaults (80% of RAM per instance, and a spill directory relative to the
+  # working directory) are wrong for a package callers run several of at once.
+  duck <- .osb_con(cfg, tag = "nodes", output = output)
+  con <- duck$con
 
   on.exit(
-    try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE),
+    {
+      try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE)
+      if (!is.null(duck$temp_dir)) {
+        unlink(duck$temp_dir, recursive = TRUE, force = TRUE)
+      }
+    },
     add = TRUE
   )
 
@@ -85,22 +119,35 @@ pro_snowball_get_nodes <- function(
   if (is.null(snapshot)) {
     if (verbose) message("Collecting keypapers...")
 
+    # pro_query() chunks the `openalex` id filter exactly as it chunks
+    # cites/cited_by, so a large keypaper set becomes many URLs. They used to
+    # be fetched and converted strictly sequentially even at workers = 12 --
+    # ~43 URLs for 2137 seeds, straight on the critical path. Derive the
+    # chunk size from `workers` for the same reason .nodes_from_api() does.
+    kp_chunk <- .chunk_limit_for(
+      length(if (!is.null(identifier)) identifier else doi),
+      workers, chunk_limit
+    )
     qu <- if (!is.null(identifier)) {
       openalexPro::pro_query(id = identifier, entity = "works",
-                             endpoint = endpoint)
+                             endpoint = endpoint, chunk_limit = kp_chunk)
     } else {
       openalexPro::pro_query(doi = doi, entity = "works",
-                             endpoint = endpoint)
+                             endpoint = endpoint, chunk_limit = kp_chunk)
     }
     openalexPro::pro_request(
       query_url = qu,
       output = file.path(output, "keypaper_json"),
+      workers = workers,
+      resume = resume,
       verbose = verbose,
       progress = verbose
     ) |>
       openalexPro::pro_request_parquet(
         output = file.path(output, "keypaper_parquet"),
         add_columns = list(oa_input = "TRUE", relation = "keypaper"),
+        workers = .par_workers(workers),
+        resume = resume,
         verbose = verbose
       )
 
@@ -119,21 +166,11 @@ pro_snowball_get_nodes <- function(
            call. = FALSE)
     }
 
-    keypaper_ids <- sprintf(
-      "
-      SELECT
-        id
-      FROM
-        read_parquet( '%s/**/*.parquet' )
-      ",
-      kp_dir
-    ) |>
-      DBI::dbGetQuery(conn = con) |>
-      unlist() |>
-      as.vector()
+    keypaper_ids <- .osb_keypaper_ids(con, kp_dir)
 
     .nodes_from_api(keypaper_ids, output, limit, verbose, workers = workers,
-                    chunk_limit = chunk_limit, endpoint = endpoint)
+                    chunk_limit = chunk_limit, endpoint = endpoint,
+                    resume = resume)
   } else {
     if (verbose) message("Resolving keypapers against the snapshot ...")
     keypaper_ids <- .keypaper_ids_snapshot(identifier, doi, snapshot, verbose)
@@ -156,15 +193,14 @@ pro_snowball_get_nodes <- function(
   # Combine individual parquet files to nodes parquet ----------------------
 
   .assemble_nodes(output, con = con, verbose = verbose)
+  .osb_mark_done(output, "nodes")
 
   # Cleanup intermediate directories --------------------------------------
-
-  unlink(file.path(output, "keypaper_json"), recursive = TRUE)
-  unlink(file.path(output, "keypaper_parquet"), recursive = TRUE)
-  unlink(file.path(output, "citing_json"), recursive = TRUE)
-  unlink(file.path(output, "citing_parquet"), recursive = TRUE)
-  unlink(file.path(output, "cited_json"), recursive = TRUE)
-  unlink(file.path(output, "cited_parquet"), recursive = TRUE)
+  #
+  # `cleanup = FALSE` when called from pro_snowball(), which defers this
+  # until after edge extraction: these directories are what a resume needs,
+  # and removing them here meant an edges-stage crash destroyed them.
+  if (isTRUE(cleanup)) .osb_clean_intermediates(output)
 
   # Return path to nodes ------------------------------------------------
 

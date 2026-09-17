@@ -14,7 +14,8 @@ test_that("snapshot mode produces the same construct as the API path", {
   expect_equal(res, normalizePath(out))
   # nodes/, edges/ and the provenance sidecar; all intermediates cleaned up
   expect_setequal(list.files(res),
-                  c("nodes", "edges", "snowball_meta.parquet"))
+                  # `_snowball_run.parquet` is the resume manifest; `.osb_done/` is hidden.
+    c("nodes", "edges", "snowball_meta.parquet", "_snowball_run.parquet"))
 
   # A relation partition may legitimately be absent once nodes are
   # deduplicated: if everything the keypapers cite is itself a keypaper or a

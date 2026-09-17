@@ -7,6 +7,7 @@
 pro_snowball_extract_edges(
   nodes = NULL,
   output = tempfile(fileext = ".snowball"),
+  duckdb_config = NULL,
   verbose = FALSE
 )
 }
@@ -15,6 +16,9 @@ pro_snowball_extract_edges(
 
 \item{output}{output folder, in which the parquet database containing the
 edges called \code{edges} will be savedp default: temporary directory.}
+
+\item{duckdb_config}{DuckDB settings for the edge-extraction connection.
+See \code{\link[=snowball_duckdb_config]{snowball_duckdb_config()}}.}
 
 \item{verbose}{Logical indicating whether to show a verbose information.
 Defaults to \code{FALSE}}

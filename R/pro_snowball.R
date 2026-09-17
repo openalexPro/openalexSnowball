@@ -75,6 +75,38 @@
 #'
 #'   Trailing slashes are stripped. Ignored in snapshot mode, where no request
 #'   is made.
+#' @param duckdb_config DuckDB settings for the two connections this function
+#'   opens. `NULL` (the default) uses [snowball_duckdb_config()]'s defaults,
+#'   optionally overridden field-by-field by
+#'   `getOption("openalexSnowball.duckdb_config")`.
+#'
+#'   The defaults matter at scale. DuckDB's own are a `memory_limit` of ~80%
+#'   of system RAM **per instance** and a spill directory relative to the
+#'   working directory -- both wrong when several `pro_snowball()` calls run
+#'   from a worker pool. Declare how many you run at once and the budget is
+#'   divided accordingly:
+#'
+#'   ```r
+#'   options(openalexSnowball.duckdb_config = list(concurrency = 4))
+#'   ```
+#' @param resume Continue an interrupted run in an existing `output` instead
+#'   of deleting it. Default `FALSE`, which preserves the previous behaviour
+#'   exactly.
+#'
+#'   Stages already completed are skipped, and within the fetch stage only
+#'   the query chunks that did not finish are re-requested. Resuming with
+#'   different keypapers, `snapshot`, `endpoint`, `max_results` or `select`
+#'   is an error: it would merge two different snowballs into one output.
+#'   `workers`, `verbose` and `duckdb_config` may differ freely, which is the
+#'   point -- "resume with fewer workers and a smaller memory limit" is the
+#'   usual reason to resume.
+#'
+#'   Note that the default `output` lives under [tempdir()] and is removed
+#'   when the R session ends, so cross-session resume needs an explicit,
+#'   persistent `output =`.
+#' @param keep_intermediates Keep the `*_json` / `*_parquet` working
+#'   directories instead of deleting them once `edges/` is written. Default
+#'   `FALSE`. Useful for debugging or for repeated resumes.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
@@ -181,18 +213,36 @@ pro_snowball <- function(
   chunk_limit = NULL,
   select = NULL,
   endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
+  resume = FALSE,
+  keep_intermediates = FALSE,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
   workers <- .check_workers(workers)
   endpoint <- .check_endpoint(endpoint)
+  # Validate early so a typo'd field fails before hours of fetching.
+  invisible(.osb_resolve_duckdb_config(duckdb_config))
   if (!xor(is.null(identifier), is.null(doi))) {
     stop("Either `identifier` or `doi` needs to be specified!")
   }
 
   output <- normalizePath(output, mustWork = FALSE)
 
-  if (dir.exists(output)) {
+  params <- .osb_run_params(identifier, doi, snapshot, limit = NULL,
+                            endpoint = endpoint, max_results = max_results,
+                            select = select)
+
+  if (isTRUE(resume) && dir.exists(output)) {
+    # Refuse to continue a *different* snowball into this directory: the
+    # result would be a silent, unrecoverable mixture of two runs.
+    .osb_check_manifest(output, params)
+    if (.osb_stage_done(output, "edges")) {
+      if (verbose) message("Nothing to do: `", output, "` is already complete.")
+      return(output)
+    }
+    if (verbose) message("Resuming in `", output, "`.")
+  } else if (dir.exists(output)) {
     if (verbose) {
       message(
         "Deleting and recreating `",
@@ -203,8 +253,22 @@ pro_snowball <- function(
     unlink(output, recursive = TRUE)
     dir.create(output, recursive = TRUE)
   }
+  dir.create(output, recursive = TRUE, showWarnings = FALSE)
+  .osb_write_manifest(output, params)
 
-  nodes <- pro_snowball_get_nodes(
+  if (isTRUE(resume) && .osb_is_temp(output)) {
+    warning("`resume = TRUE` with the default `output` under tempdir(): ",
+            "nothing will survive this R session. Pass a persistent ",
+            "`output =` for cross-session resume.", call. = FALSE)
+  }
+
+  # Any failure from here on is resumable, and the message must say where
+  # the partial work is -- not knowing that is what cost six hours once.
+  stage <- "get_nodes"
+  on.exit(NULL)
+
+  nodes <- withCallingHandlers(
+    pro_snowball_get_nodes(
     identifier = identifier,
     doi = doi,
     snapshot = snapshot,
@@ -213,22 +277,36 @@ pro_snowball <- function(
     chunk_limit = chunk_limit,
     select = select,
     endpoint = endpoint,
+    duckdb_config = duckdb_config,
+    resume = resume,
+    cleanup = FALSE,
+    prepared = TRUE,
     output = output,
     verbose = verbose
-  )
-  edges <- pro_snowball_extract_edges(
-    nodes = nodes,
-    output = output,
-    verbose = verbose
+    ),
+    error = function(e) .osb_rethrow_resumable(output, stage, e)
   )
 
-  unlink(
-    c(
-      file.path(output, "keypaper_json"),
-      file.path(output, "keypaper_jsonl")
+  stage <- "extract_edges"
+  edges <- withCallingHandlers(
+    pro_snowball_extract_edges(
+      nodes = nodes,
+      output = output,
+      duckdb_config = duckdb_config,
+      verbose = verbose
     ),
-    recursive = TRUE
+    error = function(e) .osb_rethrow_resumable(output, stage, e)
   )
+  .osb_mark_done(output, "edges")
+
+  # Cleanup is deferred to here rather than done inside get_nodes(), so that
+  # a failure in edge extraction still leaves the fetched data to resume
+  # from. Peak disk is higher as a result: the intermediates coexist with
+  # nodes/ and edges/ instead of being freed before them.
+  if (!isTRUE(keep_intermediates)) {
+    .osb_clean_intermediates(output)
+    unlink(file.path(output, "keypaper_jsonl"), recursive = TRUE)
+  }
 
   # Return path to snowball ------------------------------------------------
 
