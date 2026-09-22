@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -53,117 +53,137 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9">
-<p><a href="https://openalexpro.r-universe.dev/" class="external-link"><img src="https://openalexpro.r-universe.dev/badges/:name" alt="name status badge"></a></p>
-<p><a href="https://doi.org/10.5281/zenodo.17453180" class="external-link"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.17453180.svg" alt="DOI"></a></p>
-<p><a href="https://openalexpro.r-universe.dev/openalexPro" class="external-link"><img src="https://openalexpro.r-universe.dev/openalexPro/badges/version" alt="openalexPro status badge"></a></p>
 <div class="section level1">
-<div class="page-header"><h1 id="disclaimer">Disclaimer<a class="anchor" aria-label="anchor" href="#disclaimer"></a>
+<div class="page-header"><h1 id="openalexsnowball">openalexSnowball<a class="anchor" aria-label="anchor" href="#openalexsnowball"></a>
 </h1></div>
-</div>
-<div class="section level1">
-<h1 id="llm-usage-disclosure">LLM Usage Disclosure<a class="anchor" aria-label="anchor" href="#llm-usage-disclosure"></a>
-</h1>
-<p>Code and documentation in this project have been generated with the assistance of the codex LLM tools in Positron. All content and code is based on conceptuaisayion by the authors and has been thoroughly reviewed and edited by humans afterwards.</p>
-</div>
-<div class="section level1">
-<h1 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
-</h1>
-<p>This package builds on the package <a href="https://github.com/openalex/openalexR" class="external-link">openalexR</a> but provides a more advanced approach to retrieve works from OpenAlex. In contrast to <code>openalexR</code>, which does all processing and conversions in memory. Doing all processing in memory has advantages for smaller smaller number of records retrieved from <a href="https://openalex.org" class="external-link">OpenAlex</a>, but limits te number of works which can be retrieved due to memory limitations. Even before the limit is reached, the often occurring new allocation of memory slows down the processing. In a first step, In contrast, <code>openalexPro</code> uses a on disc processing approach where the data is processed by number of records returned per call, i.e. a per page processing approach.</p>
-</div>
-<div class="section level1">
-<h1 id="design-principles">Design Principles<a class="anchor" aria-label="anchor" href="#design-principles"></a>
-</h1>
-<p>The retrieval of works and the initial processing / preparation can be split into these three steps:</p>
-<p>In a first step (<code><a href="https://openalexpro.github.io/openalexPro/reference/pro_request.html" class="external-link">openalexPro::pro_request()</a></code>), each page from the API call is saved into an individual json file as returned by the API. The number of retrieved records is effectively only limited by the space on the drive where the json files are saved. As the complete responses including metadata are saved, one could end here and use custom made code to further process the responses, i.e. ingest it into a database.</p>
-<p>In a second step (<code>openalexPro::pro_request_jsonl()</code>), the json files are processed on a per file basis using the <code>jq</code> command-line json processor. In this step the abstract text is re-constructed, a citation string for each work is generated, and optionally add a <code>page</code> field is added. It writes the resulting json file as a newline-delimited JSON (.jsonl), suitable for further processing using <code>arrow</code> or DuckDB.</p>
-<p>Int the third (and final) step (<code><a href="https://openalexpro.github.io/openalexPro/reference/pro_request_jsonl_parquet.html" class="external-link">openalexPro::pro_request_jsonl_parquet()</a></code>) converts the jsonl files into a parquet database partitioned by <code>page</code> using the <code>duckdb</code> package. Again, as the processing is done per page as well, the conversion is not limited by memory.</p>
-<p>This approach results in a stable pipeline which works for the retrieval of small as well as large to huge corpora. As the processing is done in per page (which have a maximum of 200 works), the scaling should be more or less linear (in one application, more then 4 million works were retrieved without problems).</p>
-<p>One point which needs to be taken into consideration when retrieving huge corpora, are rate limits by OpenAlex (see <a href="https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication" class="external-link">here</a> and <a href="https://help.openalex.org/hc/en-us/articles/24397762024087-Pricing" class="external-link">here</a> for further details).</p>
-<p>The final format which is used in this package to save the retrieved data is the <code>parquet</code> format which is space efficient and allows on disc processing, therefor there is no need to load the complete data into memory (see <a href="https://parquet.apache.org/docs/" class="external-link">here</a> for a detailed description of the format as well as the <a href="https://arrow.apache.org/docs/r/" class="external-link">r-package <code>arrow</code></a>). To use the on disc processing in R, the <code>arrow</code> packages interfaces directly with <code>dplyr</code>, so that one can do a lot of processing before retrieving the actual data into memory (see the section on <a href="https://r4ds.hadley.nz/arrow.html#using-dplyr-with-arrow" class="external-link">dplyr and arrow</a> as well more general the <a href="https://r4ds.hadley.nz/arrow.html" class="external-link">arrow chapter</a> in Hadleys Wickhams <a href="">R for Data Science (2e) book</a><a href="https://r4ds.hadley.nz" class="external-link uri">https://r4ds.hadley.nz</a>).</p>
-</div>
-<div class="section level1">
-<h1 id="quickstart">Quickstart<a class="anchor" aria-label="anchor" href="#quickstart"></a>
-</h1>
+<p>Citation <strong>snowball searches</strong> on the OpenAlex graph, processed on disk.</p>
+<p>Starting from a set of seed papers (<em>keypapers</em>), a snowball search follows citation links outward: the works that cite the seeds, and the works the seeds cite. openalexSnowball retrieves that neighbourhood and writes it as partitioned Apache Parquet, so the result is bounded by disk rather than by memory and can be queried without loading it.</p>
+<p>Two backends produce the same on-disk construct:</p>
+<ul>
+<li>
+<strong>API</strong> — live queries against OpenAlex, via <a href="https://github.com/openalexPro/openalexPro" class="external-link">openalexPro</a>.</li>
+<li>
+<strong>Snapshot</strong> — entirely offline against a local OpenAlex snapshot, via <a href="https://github.com/openalexPro/openalexSnapshot" class="external-link">openalexSnapshot</a>. Reproducible, because the corpus is a fixed vintage.</li>
+</ul>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>The latest “stable” version is available via <a href="https://openalexpro.r-universe.dev/openalexPro" class="external-link">r-universe</a></p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'openalexPro'</span>, repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'https://openalexpro.r-universe.dev'</span>, <span class="st">'https://cloud.r-project.org'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>The “development” version can be installed from github. <strong>This is generally not recommended!</strong> Unless you need bleeding edge functionality and can deal with changing function definitions, or whant to test new functionality, is this not recommended.</p>
+<code class="sourceCode R"><span><span class="co"># stable, from r-universe</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span></span>
+<span>  <span class="st">"openalexSnowball"</span>,</span>
+<span>  repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://openalexpro.r-universe.dev"</span>, <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># development</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"openalexPro/openalexSnowball"</span>, ref <span class="op">=</span> <span class="st">"dev"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
+</h2>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"openalexPro/openalexPro"</span>, ref <span class="op">=</span> <span class="st">"dev"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/openalexPro/openalexSnowball" class="external-link">openalexSnowball</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/pro_snowball.html">pro_snowball</a></span><span class="op">(</span></span>
+<span>  identifier <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"W2741809807"</span>, <span class="st">"W2755950973"</span><span class="op">)</span>,</span>
+<span>  output     <span class="op">=</span> <span class="st">"./snowball"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">sb</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_snowball.html">read_snowball</a></span><span class="op">(</span><span class="va">out</span>, return_data <span class="op">=</span> <span class="cn">TRUE</span>, shorten_ids <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">sb</span><span class="op">$</span><span class="va">nodes</span></span>
+<span><span class="va">sb</span><span class="op">$</span><span class="va">edges</span></span></code></pre></div>
+<p>Keypapers may be given as <code>identifier</code> (OpenAlex ids) or <code>doi</code>.</p>
+<div class="section level3">
+<h3 id="nodes">Nodes<a class="anchor" aria-label="anchor" href="#nodes"></a>
+</h3>
+<p><code>id</code> is a key: every work appears exactly once. Because a work can hold more than one role in the same search — a keypaper that cites another keypaper is both — the roles are three independent flags:</p>
+<table class="table">
+<thead><tr>
+<th>column</th>
+<th>meaning</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>is_keypaper</code></td>
+<td>one of the supplied keypapers</td>
+</tr>
+<tr>
+<td><code>is_citing</code></td>
+<td>cites at least one keypaper</td>
+</tr>
+<tr>
+<td><code>is_cited</code></td>
+<td>is cited by at least one keypaper</td>
+</tr>
+</tbody>
+</table>
+<p>Any combination can be <code>TRUE</code>. <code>relation</code> is also present and is the hive partition key, but it records only the highest-precedence role (<code>keypaper</code> &gt; <code>citing</code> &gt; <code>cited</code>), so it is lossy — filter on the booleans.</p>
 </div>
-<div class="section level2">
-<h2 id="basic-workflow-for-searches">Basic Workflow for Searches<a class="anchor" aria-label="anchor" href="#basic-workflow-for-searches"></a>
-</h2>
-<p>First, the package needs to be loaded</p>
+<div class="section level3">
+<h3 id="edges">Edges<a class="anchor" aria-label="anchor" href="#edges"></a>
+</h3>
+<p>Three <strong>mutually exclusive</strong> types: <code>core</code> (at least one endpoint is a keypaper, both endpoints in the dataset), <code>extended</code> (both endpoints in the dataset, neither a keypaper), and <code>outside</code> (an endpoint is external). Selecting several is a union of disjoint sets.</p>
+</div>
+<div class="section level3">
+<h3 id="offline">Offline<a class="anchor" aria-label="anchor" href="#offline"></a>
+</h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/openalexPro/openalexPro" class="external-link">openalexPro</a></span><span class="op">)</span></span></code></pre></div>
-<div class="section level3">
-<h3 id="id_1-define-query-openalexpropro_query">1. Define query (<code>openalexPro:pro_query()</code>)<a class="anchor" aria-label="anchor" href="#id_1-define-query-openalexpropro_query"></a>
-</h3>
-<p>The query is defined using the function <code>openalexPro:pro_query()</code>. It follows the logic and arguments of <code><a href="https://docs.ropensci.org/openalexR/reference/oa_query.html" class="external-link">openalexR::oa_query()</a></code>. In addition to <code><a href="https://docs.ropensci.org/openalexR/reference/oa_query.html" class="external-link">openalexR::oa_query()</a></code>, the names of filters as well as fields selected for retrieval are verified before sending them to OpenAlex.</p>
-<p>The supported filter names can be retrieved by running</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://openalexpro.github.io/openalexPro/reference/opt_filter_names.html" class="external-link">opt_filter_names</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>and supported select fields by running</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://openalexpro.github.io/openalexPro/reference/opt_select_fields.html" class="external-link">opt_select_fields</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>This defines a basic query.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">query</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://openalexpro.github.io/openalexPro/reference/pro_query.html" class="external-link">pro_query</a></span><span class="op">(</span></span>
-<span>  title_and_abstract.search <span class="op">=</span> <span class="st">"biodiversity AND conservation AND IPBES"</span>,</span>
-<span>  entity <span class="op">=</span> <span class="st">"works"</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="reference/pro_snowball.html">pro_snowball</a></span><span class="op">(</span></span>
+<span>  identifier <span class="op">=</span> <span class="va">keypapers</span>,</span>
+<span>  snapshot   <span class="op">=</span> <span class="st">"/path/to/openalex/parquet"</span>,</span>
+<span>  select     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id"</span>, <span class="st">"doi"</span>, <span class="st">"title"</span>, <span class="st">"publication_year"</span><span class="op">)</span>,</span>
+<span>  output     <span class="op">=</span> <span class="st">"./snowball_offline"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>This returns a URL, which one can open in the browser.</p>
-<p>If, however, for example 100 DOIs are given to be retrieved, the query is chunked into chunks of a maximum of the value of the argument <code>chunk_limit</code>, default is 50. In this case, the functions returns a <code><a href="https://rdrr.io/r/base/list.html" class="external-link">list()</a></code> with each element named <code>Chunk_x</code> and containing the URL as a character vector.</p>
+<p>Needs the indexes built by <code><a href="https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html" class="external-link">openalexSnapshot::build_corpus_index()</a></code> and <code>build_citation_index()</code>, plus <code>build_doi_index()</code> for DOI keypapers.</p>
 </div>
 <div class="section level3">
-<h3 id="id_2-retrieving-records-openalexpropro_request">2. Retrieving records (<code>openalexPro::pro_request()</code>)<a class="anchor" aria-label="anchor" href="#id_2-retrieving-records-openalexpropro_request"></a>
+<h3 id="larger-searches">Larger searches<a class="anchor" aria-label="anchor" href="#larger-searches"></a>
 </h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">openalexPro</span><span class="fu">::</span><span class="fu"><a href="https://openalexpro.github.io/openalexPro/reference/pro_request.html" class="external-link">pro_request</a></span><span class="op">(</span></span>
-<span>  query_url <span class="op">=</span> <span class="va">query</span>,</span>
-<span>  output <span class="op">=</span> <span class="st">"json"</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>Will retrieve the records and save them into the folder specified in output. One important difference is now between the query being a single URL or a list: if it is a list, the <code>future</code> and <code>future.apply</code> packages are used to process the URLs in the list in parallel.</p>
-</div>
-<div class="section level3">
-<h3 id="id_3-processing-json-files-openalexpropro_request_jsonl">3. Processing <code>json</code> files (<code>openalexPro::pro_request_jsonl()</code>)<a class="anchor" aria-label="anchor" href="#id_3-processing-json-files-openalexpropro_request_jsonl"></a>
-</h3>
-<p>This step prepares the json files for the final ingestion into a <code>parquet</code> database:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">openalex_jsonl_folder</span> <span class="op">&lt;-</span> <span class="fu">openalexPoro2</span><span class="fu">::</span><span class="fu">pro_request_jsonl</span><span class="op">(</span></span>
-<span>  input_json <span class="op">=</span> <span class="st">"json_files"</span>,</span>
-<span>  output <span class="op">=</span> <span class="va">json_extracted</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>The resulting json files can be found in the folder as specified in <code>output</code>.</p>
-</div>
-<div class="section level3">
-<h3 id="id_4-convert-to-parquet-database-openalexpropro_request_jsonl_parquet">4. Convert to <code>parquet</code> database (<code>openalexPro::pro_request_jsonl_parquet()</code>)<a class="anchor" aria-label="anchor" href="#id_4-convert-to-parquet-database-openalexpropro_request_jsonl_parquet"></a>
-</h3>
-<p>Here the files are converted into a parquet page partitioned dataset saved as individual <code>parquet</code> files in the folder provided by the <code>output</code> argument.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">parquet</span> <span class="op">&lt;-</span> <span class="st">"./parquet"</span></span>
-<span><span class="fu">openalexPro</span><span class="fu">::</span><span class="fu"><a href="https://openalexpro.github.io/openalexPro/reference/pro_request_jsonl_parquet.html" class="external-link">pro_request_jsonl_parquet</a></span><span class="op">(</span></span>
-<span>  json_dir <span class="op">=</span> <span class="va">json_extracted</span>,</span>
-<span>  output <span class="op">=</span> <span class="va">parquet</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="convenience-function-to-read-the-retrieved-data-openalexproread_corpus">Convenience Function to Read the Retrieved Data (<code>openalexPro::read_corpus()</code>)<a class="anchor" aria-label="anchor" href="#convenience-function-to-read-the-retrieved-data-openalexproread_corpus"></a>
-</h3>
-<p>The <code><a href="https://openalexpro.github.io/openalexPro/reference/read_corpus.html" class="external-link">read_corpus()</a></code> function reads the corpus either as a arrow <code>Dataset</code> object if <code>return_data = FALSE</code>, which is essentially metadata to the dataset, or a <code>data.frame</code>, i.e. a data table, if <code>return_data = TRUE</code>, in which case the whole dataset is loaded into memory.</p>
+<ul>
+<li>
+<strong>Pass all keypapers to one call.</strong> Cost is dominated by scattered reads over the corpus and the file set saturates, so ten times the keypapers costs roughly twice the time — a loop pays that cost every iteration.</li>
+<li>
+<strong>Name the columns you need</strong> with <code>select=</code>. Record retrieval is ~92% of an offline run.</li>
+<li>
+<strong>Declare concurrency</strong> if you run several searches at once, so they do not each assume they own the machine: <code>options(openalexSnowball.duckdb_config = list(concurrency = 4))</code>.</li>
+<li>
+<strong><code>resume = TRUE</code></strong> continues an interrupted run. The default <code>output</code> is a temporary directory that does not survive the session, so pass a persistent <code>output =</code> if you want that.</li>
+</ul>
+<p>See <code><a href="articles/Snowball.html">vignette("Snowball")</a></code> and <code><a href="reference/pro_snowball.html">?pro_snowball</a></code> for the full argument set.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="snowball-searches">Snowball Searches<a class="anchor" aria-label="anchor" href="#snowball-searches"></a>
+<h2 id="related-packages">Related packages<a class="anchor" aria-label="anchor" href="#related-packages"></a>
 </h2>
-<p>Snowball search functionality has moved to the separate <a href="https://github.com/openalexPro/openalexSnowball" class="external-link"><code>openalexSnowball</code></a> package, which depends on <code>openalexPro</code> for the underlying pipeline.</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th>package</th>
+<th>role</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/openalexPro/openalexPro" class="external-link">openalexPro</a></td>
+<td>OpenAlex API access and JSON→Parquet conversion</td>
+</tr>
+<tr>
+<td><a href="https://github.com/openalexPro/openalexSnapshot" class="external-link">openalexSnapshot</a></td>
+<td>local snapshot indexing and offline lookup</td>
+</tr>
+<tr>
+<td><a href="https://github.com/openalexPro/openalexConvert" class="external-link">openalexConvert</a></td>
+<td>export to CSL-JSON, BibTeX, Zotero</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section level2">
+<h2 id="llm-usage-disclosure">LLM usage disclosure<a class="anchor" aria-label="anchor" href="#llm-usage-disclosure"></a>
+</h2>
+<p>Code and documentation in this project have been generated with the assistance of LLM tools. All content is based on conceptualisation by the authors and has been reviewed and edited by humans afterwards.</p>
 </div>
 </div>
 
@@ -204,6 +224,7 @@
 <li><a href="https://lifecycle.r-lib.org/articles/stages.html" class="external-link"><img src="https://img.shields.io/badge/lifecycle-maturing-blue.svg" alt="Lifecycle: maturing"></a></li>
 <li><a href="https://www.gnu.org/licenses/gpl-2.0" class="external-link"><img src="https://img.shields.io/badge/License-GPL%20%3E%3D%202-blue.svg" alt="License: GPL-2+"></a></li>
 <li><a href="https://app.codecov.io/gh/openalexPro/openalexSnowball" class="external-link"><img src="https://codecov.io/gh/openalexPro/openalexSnowball/graph/badge.svg" alt="Codecov"></a></li>
+<li><a href="https://openalexpro.r-universe.dev/openalexSnowball" class="external-link"><img src="https://openalexpro.r-universe.dev/openalexSnowball/badges/version" alt="openalexSnowball status badge"></a></li>
 </ul>
 </div>
 
@@ -216,7 +237,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

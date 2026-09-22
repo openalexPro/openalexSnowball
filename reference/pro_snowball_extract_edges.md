@@ -9,6 +9,7 @@ nodes
 pro_snowball_extract_edges(
   nodes = NULL,
   output = tempfile(fileext = ".snowball"),
+  duckdb_config = NULL,
   verbose = FALSE
 )
 ```
@@ -23,6 +24,11 @@ pro_snowball_extract_edges(
 
   output folder, in which the parquet database containing the edges
   called `edges` will be savedp default: temporary directory.
+
+- duckdb_config:
+
+  DuckDB settings for the edge-extraction connection. See
+  [`snowball_duckdb_config()`](https://openalexpro.github.io/openalexSnowball/reference/snowball_duckdb_config.md).
 
 - verbose:
 

@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -82,34 +82,76 @@
 <div class="section level2">
 <h2 id="architecture">Architecture<a class="anchor" aria-label="anchor" href="#architecture"></a></h2>
 <div class="section level3">
-<h3 id="core-pipeline-4-functions">Core Pipeline (4 functions)<a class="anchor" aria-label="anchor" href="#core-pipeline-4-functions"></a></h3>
+<h3 id="core-pipeline-5-exported-functions">Core Pipeline (5 exported functions)<a class="anchor" aria-label="anchor" href="#core-pipeline-5-exported-functions"></a></h3>
 <ol style="list-style-type: decimal"><li><p><strong><code><a href="reference/pro_snowball.html">pro_snowball()</a></code></strong> — Top-level orchestrator. Accepts <code>identifier</code> (OpenAlex IDs) or <code>doi</code> (mutually exclusive). Returns path to the output directory.</p></li>
-<li><p><strong><code><a href="reference/pro_snowball_get_nodes.html">pro_snowball_get_nodes()</a></code></strong> — Phase 1: Retrieves keypapers + their citing/cited papers from the OpenAlex API via <code><a href="https://openalexpro.github.io/openalexPro/reference/pro_query.html" class="external-link">openalexPro::pro_query()</a></code>. Writes partitioned parquet at <code>output/nodes/</code> with a <code>relation</code> column (<code>keypaper</code>, <code>citing</code>, <code>cited</code>). Each retrieval stage goes through: API → JSON files → JSONL → Parquet.</p></li>
-<li><p><strong><code><a href="reference/pro_snowball_extract_edges.html">pro_snowball_extract_edges()</a></code></strong> — Phase 2: Loads the nodes parquet into DuckDB, executes <code>inst/extract_edges.sql</code>, and writes partitioned parquet at <code>output/edges/</code> with an <code>edge_type</code> column.</p></li>
-<li><p><strong><code><a href="reference/read_snowball.html">read_snowball()</a></code></strong> — Reads a completed snowball result directory; returns a list with <code>nodes</code> and <code>edges</code> as either Arrow Datasets (default, on-disk) or tibbles (<code>return_data = TRUE</code>). Supports filtering by <code>edge_type</code>.</p></li>
+<li>
+<p><strong><code><a href="reference/pro_snowball_get_nodes.html">pro_snowball_get_nodes()</a></code></strong> — Phase 1: collects the keypapers and their citing/cited works, and assembles <code>output/nodes/</code>, partitioned by <code>relation</code> (<code>keypaper</code>, <code>citing</code>, <code>cited</code>). Two backends:</p>
+<ul><li>
+<strong>API</strong> (default): <code><a href="https://openalexpro.github.io/openalexPro/reference/pro_query.html" class="external-link">openalexPro::pro_query()</a></code> → <code>pro_request()</code> (JSON) → <code>pro_request_parquet()</code>.</li>
+<li>
+<strong>Snapshot</strong> (<code>snapshot = &lt;path&gt;</code>): entirely offline, via <code><a href="https://rdrr.io/pkg/openalexSnapshot/man/lookup_by_id.html" class="external-link">openalexSnapshot::lookup_by_id()</a></code>, <code>get_citing()</code> and <code>get_cited()</code>. Requires the corpus index, citation index, and the DOI index if keypapers are given as DOIs.</li>
+</ul></li>
+<li><p><strong><code><a href="reference/pro_snowball_extract_edges.html">pro_snowball_extract_edges()</a></code></strong> — Phase 2: creates a <code>read_parquet</code> view over <code>nodes/</code>, executes <code>inst/extract_edges.sql</code>, and writes <code>output/edges/</code> partitioned by <code>edge_type</code>.</p></li>
+<li><p><strong><code><a href="reference/read_snowball.html">read_snowball()</a></code></strong> — Reads a completed snowball directory; returns <code>nodes</code> and <code>edges</code> as Arrow Datasets (default) or tibbles (<code>return_data = TRUE</code>). Filters by <code>edge_type</code>; <code>meta = TRUE</code> adds the provenance sidecar.</p></li>
+<li><p><strong><code><a href="reference/snowball_duckdb_config.html">snowball_duckdb_config()</a></code></strong> — Builds the DuckDB settings used by the two connections the pipeline opens. See <em>DuckDB configuration</em> below.</p></li>
 </ol></div>
 <div class="section level3">
+<h3 id="node-roles">Node roles<a class="anchor" aria-label="anchor" href="#node-roles"></a></h3>
+<p><code>id</code> is a key in <code>nodes/</code> — one row per work, whichever backend produced it. Because a work can hold more than one role at once, the roles are three independent booleans: <strong><code>is_keypaper</code></strong>, <strong><code>is_citing</code></strong>, <strong><code>is_cited</code></strong>. Any combination can be <code>TRUE</code>.</p>
+<p><code>relation</code> is kept as the hive partition key but records only the <strong>highest-precedence</strong> role (<code>keypaper</code> &gt; <code>citing</code> &gt; <code>cited</code>), so it is lossy: <code>relation == "cited"</code> does <em>not</em> find every cited work. Filter on the booleans; use <code>relation</code> for partition pruning.</p>
+</div>
+<div class="section level3">
 <h3 id="edge-classification-in-instextract_edgessql">Edge Classification (in <code>inst/extract_edges.sql</code>)<a class="anchor" aria-label="anchor" href="#edge-classification-in-instextract_edgessql"></a></h3>
-<p>Three mutually-useful edge types: - <code>core</code> — at least one endpoint is a keypaper AND both endpoints are in the dataset - <code>extended</code> — both endpoints are in the dataset (superset of core) - <code>outside</code> — at least one endpoint is external to the dataset</p>
+<p>Three <strong>mutually exclusive</strong> edge types — the <code>CASE</code> falls through, so a core edge is never also reported as extended: - <code>core</code> — at least one endpoint is a keypaper, and both endpoints are in the dataset - <code>extended</code> — both endpoints are in the dataset, and neither is a keypaper - <code>outside</code> — at least one endpoint is external to the dataset</p>
+<p><code>read_snowball(edge_type = c("core", "extended"))</code> is therefore a union of disjoint sets, not a widening.</p>
+</div>
+<div class="section level3">
+<h3 id="node-assembly-is-two-passes-deliberately">Node assembly is two passes, deliberately<a class="anchor" aria-label="anchor" href="#node-assembly-is-two-passes-deliberately"></a></h3>
+<p><code>.assemble_nodes()</code> must not put the wide nested works columns through a blocking operator. Computing the role flags and the de-duplication in window functions (as 0.12.1/0.13.0 did) pushed all ~51 columns — <code>abstract</code>, <code>abstract_inverted_index</code> as <code>MAP(VARCHAR, BIGINT[])</code>, <code>authorships</code>, <code>locations</code>, <code>topics</code> — through four of them, and a 2137-keypaper run hit a 28.7 GiB memory limit.</p>
+<ul><li>
+<strong>Pass 1</strong> aggregates <code>(id, relation)</code> plus the synthetic <code>filename</code> / <code>file_row_number</code> into one row per work: the three flags and the physical address of the precedence winner, via <code>min(struct_pack(...))</code> (STRUCT comparison is lexicographic by field position, so one aggregate replaces all four windows and gives a total, deterministic tie-break).</li>
+<li>
+<strong>Pass 2</strong> scans the wide data once per relation and inner-joins that narrow table on the row address — 1:1, so the payload only ever travels the streaming probe side.</li>
+</ul><p>Three details are load-bearing: all statements share one <code>read_parquet(union_by_name = true)</code> spec (relations are selected with <code>WHERE</code>, never by narrowing the file list, because <code>read_corpus()</code> infers the schema from the first fragment); <code>hive_partitioning = false</code> (otherwise <code>query=chunk_N/</code> levels make the node schema depend on the keypaper count); and no <code>PARTITION_BY</code> (its writer buffers 524,288 rows per thread with no byte cap).</p>
+</div>
+<div class="section level3">
+<h3 id="duckdb-configuration">DuckDB configuration<a class="anchor" aria-label="anchor" href="#duckdb-configuration"></a></h3>
+<p>Both connections go through <code>.osb_con()</code>. DuckDB’s defaults are wrong for a package people run several of at once: <code>memory_limit</code> is ~80% of RAM <strong>per instance</strong>, and <code>temp_directory</code> is <code>.tmp</code> <em>relative to the working directory</em>, so concurrent callers share one spill directory and corrupt each other’s spill files.</p>
+<p>Defaults here: <code>preserve_insertion_order = FALSE</code>, a private per-call/per-stage spill directory under <code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir()</a></code>, and a budget of half of physical RAM divided by a declared <code>concurrency</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>openalexSnowball.duckdb_config <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>concurrency <span class="op">=</span> <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Settings resolve <strong>per field</strong> (argument &gt; option &gt; package default), so setting one does not discard the others. Unknown field names are an error. Leave <code>partitioned_write_max_open_files</code> alone: <code>nodes/</code> and <code>edges/</code> have three partitions each.</p>
+</div>
+<div class="section level3">
+<h3 id="resume">Resume<a class="anchor" aria-label="anchor" href="#resume"></a></h3>
+<p><code>pro_snowball(resume = TRUE)</code> keeps an existing <code>output</code> and skips stages recorded in <code>.osb_done/</code>; within fetching, only unfinished query chunks are re-requested. <code>_snowball_run.parquet</code> records the parameters that define the snowball, and resuming with a different seed set, <code>snapshot</code>, <code>endpoint</code>, <code>max_results</code> or <code>select</code> is a hard error — <code>workers</code>, <code>verbose</code> and <code>duckdb_config</code> may differ freely.</p>
+<p>Note the default <code>output</code> is a <code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile()</a></code> and does not survive the session, so cross-session resume needs an explicit persistent <code>output =</code>.</p>
 </div>
 <div class="section level3">
 <h3 id="key-design-patterns">Key Design Patterns<a class="anchor" aria-label="anchor" href="#key-design-patterns"></a></h3>
 <ul><li>
 <strong>On-disk processing</strong>: Arrow + DuckDB throughout; data is never fully loaded into R memory during the pipeline.</li>
 <li>
-<strong>Dependency on openalexPro</strong>: <code>openalexPro</code> (&gt;= 0.4.0) handles all API communication and JSON→Parquet conversion. openalexSnowball orchestrates calls to it.</li>
+<strong>Dependency on openalexPro / openalexSnapshot</strong>: <code>openalexPro</code> (&gt;= 0.12.0) handles API communication and JSON→Parquet conversion; <code>openalexSnapshot</code> (&gt;= 0.3.1) provides the offline backend. openalexSnowball orchestrates both.</li>
 <li>
 <strong>NSE</strong>: Uses <code>rlang</code> <code>.data</code> and <code>.env</code> pronouns in dplyr chains.</li>
 </ul></div>
 </div>
 <div class="section level2">
 <h2 id="testing">Testing<a class="anchor" aria-label="anchor" href="#testing"></a></h2>
-<p>Tests live in <code>tests/testthat/</code> and use VCR cassettes (<code>tests/fixtures/vcr/</code>) to mock all OpenAlex API calls — no live network requests needed during testing.</p>
+<p>Tests live in <code>tests/testthat/</code> and need no network. Nothing is skipped on CI.</p>
 <ul><li>
-<code>helper_vcr.R</code> configures cassette paths and filters sensitive headers (<code>api_key</code>, <code>Authorization</code>).</li>
-<li>Tests compare output against the reference implementation <code><a href="https://docs.ropensci.org/openalexR/reference/oa_snowball.html" class="external-link">openalexR::oa_snowball()</a></code>.</li>
-<li>Snapshot files are in <code>tests/testthat/_snaps/</code>.</li>
-</ul><p>When adding or updating tests that involve API calls, record new VCR cassettes rather than making live requests.</p>
+<strong>API path</strong> — VCR cassettes in <code>tests/fixtures/vcr/</code>. <code>helper_vcr.R</code> configures paths and filters <code>api_key</code> / <code>Authorization</code>. Record new cassettes rather than making live requests. Note the request URLs are a function of the <em>sorted</em> keypaper set (<code>.osb_keypaper_ids()</code> orders by <code>id</code>), so cassettes are stable across scan order and DuckDB versions.</li>
+<li>
+<strong>Snapshot path</strong> — <code>make_snapshot_fixture()</code> (<code>helper_snapshot.R</code>) builds a synthetic corpus in <code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir()</a></code> via <code>openalexSnapshot</code>’s <code>make_tiny_corpus()</code> and then all three indexes. No real corpus needed.</li>
+<li>
+<code>test-006-assemble_nodes_memory.R</code> reproduces the 28.7 GiB OOM in seconds: a payload large in memory but tiny on disk, a 512 MB <code>memory_limit</code> and <code>max_temp_directory_size = '0KiB'</code> so it fails instead of spilling. It also asserts the invariant that matters — the assembly plan contains <strong>no <code>WINDOW</code> operator</strong>.</li>
+<li>
+<code>test-008-resume.R</code> covers resume end to end, including the regression test for the old <code>APPEND</code> (a second assembly must not double the rows).</li>
+<li>
+<code>test-005</code> ends with two overlapping <code>pro_snowball(snapshot=)</code> runs under <code><a href="https://future.futureverse.org/reference/multisession.html" class="external-link">future::multisession</a></code>, the only test that exercises concurrency.</li>
+<li>Snapshot files are in <code>tests/testthat/_snaps/</code>. Do <strong>not</strong> snapshot <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> of the nodes tibble: it includes the nested <code>authorships</code> struct type header, whose field order differs between DuckDB versions.</li>
+</ul><p>Comparison against <code><a href="https://docs.ropensci.org/openalexR/reference/oa_snowball.html" class="external-link">openalexR::oa_snowball()</a></code> is the correctness anchor (<code>test-004</code>, zero-diff).</p>
 </div>
 <div class="section level2">
 <h2 id="cicd">CI/CD<a class="anchor" aria-label="anchor" href="#cicd"></a></h2>
@@ -128,7 +170,9 @@
 </tr><tr><td><code>rhub.yaml</code></td>
 <td>—</td>
 <td>R-hub comprehensive environment checks</td>
-</tr></tbody></table></div>
+</tr></tbody></table><p><strong>Both ecosystem dependencies must be listed in <code>extra-packages</code></strong> in all three workflows (<code>github::openalexPro/openalexPro</code>, <code>github::openalexPro/openalexSnapshot</code>). pak resolves them from the default branch, so the versions there must satisfy this package’s <code>Imports</code> floors.</p>
+<p>openalexSnapshot was missing from that list entirely until 0.15.0, so dependency resolution failed before a single test ran — which is why this suite had never executed on CI. They were temporarily pinned to <code>@dev</code> while <code>main</code> lagged; the pins came off once openalexPro 0.12.1 and openalexSnapshot 0.3.1 reached <code>main</code>. If a future release raises a floor again, pin to <code>@dev</code> until the dependency is released, then unpin.</p>
+</div>
 <div class="section level2">
 <h2 id="notes">Notes<a class="anchor" aria-label="anchor" href="#notes"></a></h2>
 <ul><li>Vignettes use Quarto (<code>.qmd</code>) with <code>execute: eval: false</code> to avoid live API calls during package builds.</li>
@@ -146,7 +190,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

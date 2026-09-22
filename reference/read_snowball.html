@@ -9,7 +9,7 @@ containing nodes and edges, which can be either Arrow Datasets or tibbles."></he
 
     <a class="navbar-brand me-2" href="../index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -50,7 +50,8 @@ containing nodes and edges, which can be either Arrow Datasets or <code>tibble</
 <span>  snowball <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  edge_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"core"</span>, <span class="st">"extended"</span>, <span class="st">"outside"</span><span class="op">)</span>,</span>
 <span>  return_data <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  shorten_ids <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  shorten_ids <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  meta <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -83,11 +84,50 @@ shou,d be returned.</p></dd>
 <dd><p>If <code>TRUE</code> the ids will be shortened, i.e. the part
 <code>https://openalex.org/</code> will be removed</p></dd>
 
+
+<dt id="arg-meta">meta<a class="anchor" aria-label="anchor" href="#arg-meta"></a></dt>
+<dd><p>Also return provenance as a third list element <code>meta</code>: how the
+snowball was produced (<code>api</code> or <code>snapshot</code>), the snapshot path and the
+vintage of the citation index it was built from, the resolved keypapers,
+and package versions. Defaults to <code>FALSE</code>, which keeps the return shape
+<code>list(nodes, edges)</code>. The sidecar is written to disk either way.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A list containing two elements: nodes and edges, which are either
-<code>ArrowObject</code> representing the corpus or <code>tibble</code>s containing the data.</p>
+<code>ArrowObject</code> representing the corpus or <code>tibble</code>s containing the data
+(plus <code>meta</code> when <code>meta = TRUE</code>).</p>
+<p><code>nodes</code> has one row per OpenAlex work – <code>id</code> is a key – and carries the
+role columns described below.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="node-roles">Node roles<a class="anchor" aria-label="anchor" href="#node-roles"></a></h2>
+
+
+
+<p>A work can hold more than one role in the same snowball: a keypaper that
+cites another keypaper is both a keypaper and a citing work, and a work can
+both cite one keypaper and be cited by another. Because <code>id</code> is a key, those
+roles cannot each get their own row, so they are three independent flags on
+the single row:</p><ul><li><p><code>is_keypaper</code> – the work is one of the supplied keypapers.</p></li>
+<li><p><code>is_citing</code> – the work cites at least one keypaper.</p></li>
+<li><p><code>is_cited</code> – the work is cited by at least one keypaper.</p></li>
+</ul><p>Any combination can be <code>TRUE</code>, and at least one always is. Filter on these:</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="va">sb</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_snowball.html">read_snowball</a></span><span class="op">(</span><span class="va">path</span>, return_data <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">sb</span><span class="op">$</span><span class="va">nodes</span>, <span class="va">is_citing</span><span class="op">)</span>              <span class="co"># everything citing a keypaper</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">sb</span><span class="op">$</span><span class="va">nodes</span>, <span class="va">is_citing</span> <span class="op">&amp;</span> <span class="va">is_cited</span><span class="op">)</span>   <span class="co"># works in both directions</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">sb</span><span class="op">$</span><span class="va">nodes</span>, <span class="op">!</span><span class="va">is_keypaper</span><span class="op">)</span>           <span class="co"># the snowballed neighbourhood</span></span></code></pre><p></p></div>
+<p><code>relation</code> is also present and is the hive partition key of <code>nodes/</code>, but it
+records only the <strong>highest-precedence</strong> role (<code>keypaper</code> &gt; <code>citing</code> &gt;
+<code>cited</code>). A work that is both citing and cited reports
+<code>relation = "citing"</code>, so <code>relation == "cited"</code> does <strong>not</strong> find every
+cited work – <code>is_cited</code> does. Use <code>relation</code> for partition pruning and the
+booleans for filtering.</p>
+<p>The flags describe a work's role <em>in this snowball</em>, not a property of the
+work: the same paper can be <code>is_cited</code> in one snowball and <code>is_citing</code> in
+another.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
@@ -99,7 +139,7 @@ shou,d be returned.</p></dd>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

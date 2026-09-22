@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,6 +47,16 @@
 <span>  identifier <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  doi <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  limit <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  snapshot <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  max_results <span class="op">=</span> <span class="fl">100000L</span>,</span>
+<span>  workers <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  chunk_limit <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  select <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  endpoint <span class="op">=</span> <span class="st">"https://api.openalex.org"</span>,</span>
+<span>  duckdb_config <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  resume <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  cleanup <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  prepared <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  output <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".snowball"</span><span class="op">)</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -68,6 +78,59 @@
 <dd><p>If <code>citedOnly</code> only works cited by the keypaper are retrieved,
 <code>citingOnly</code> retrieves only works citing the keypaper. Default: <code>NULL</code>
 where all will be retrieved. 'none' is equal to <code>NULL</code></p></dd>
+
+
+<dt id="arg-snapshot">snapshot<a class="anchor" aria-label="anchor" href="#arg-snapshot"></a></dt>
+<dd><p>Path to a local OpenAlex snapshot (either a root directory
+containing <code>parquet/</code>, or the <code>parquet/</code> directory itself). When supplied,
+nodes are gathered offline from the snapshot instead of the OpenAlex API.
+Requires the indexes built by <code><a href="https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html" class="external-link">openalexSnapshot::build_corpus_index()</a></code> and
+<code>build_citation_index()</code>. Default <code>NULL</code> (use the API).</p></dd>
+
+
+<dt id="arg-max-results">max_results<a class="anchor" aria-label="anchor" href="#arg-max-results"></a></dt>
+<dd><p>Snapshot mode only: refuse to expand a keypaper with more
+citing works than this. See <code><a href="https://rdrr.io/pkg/openalexSnapshot/man/get_citing.html" class="external-link">openalexSnapshot::get_citing()</a></code>.</p></dd>
+
+
+<dt id="arg-workers">workers<a class="anchor" aria-label="anchor" href="#arg-workers"></a></dt>
+<dd><p>Number of parallel workers. Default <code>1</code> (sequential).</p></dd>
+
+
+<dt id="arg-chunk-limit">chunk_limit<a class="anchor" aria-label="anchor" href="#arg-chunk-limit"></a></dt>
+<dd><p>API mode only: ids per filter URL. <code>NULL</code> (default)
+derives one from <code>workers</code>; see <code><a href="pro_snowball.html">pro_snowball()</a></code>.</p></dd>
+
+
+<dt id="arg-select">select<a class="anchor" aria-label="anchor" href="#arg-select"></a></dt>
+<dd><p>Snapshot mode only: node columns to keep. See <code><a href="pro_snowball.html">pro_snowball()</a></code>.</p></dd>
+
+
+<dt id="arg-endpoint">endpoint<a class="anchor" aria-label="anchor" href="#arg-endpoint"></a></dt>
+<dd><p>API mode only: base URL of the OpenAlex API. See
+<code><a href="pro_snowball.html">pro_snowball()</a></code>.</p></dd>
+
+
+<dt id="arg-duckdb-config">duckdb_config<a class="anchor" aria-label="anchor" href="#arg-duckdb-config"></a></dt>
+<dd><p>DuckDB settings for the assembly connection. See
+<code><a href="snowball_duckdb_config.html">snowball_duckdb_config()</a></code>.</p></dd>
+
+
+<dt id="arg-resume">resume<a class="anchor" aria-label="anchor" href="#arg-resume"></a></dt>
+<dd><p>Keep an existing <code>output</code> and continue from where a previous
+run stopped, instead of deleting it. Default <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg-cleanup">cleanup<a class="anchor" aria-label="anchor" href="#arg-cleanup"></a></dt>
+<dd><p>Remove the intermediate <code>*_json</code> / <code>*_parquet</code> directories
+once the nodes are assembled. Default <code>TRUE</code>. <code><a href="pro_snowball.html">pro_snowball()</a></code> passes
+<code>FALSE</code> and cleans up after edge extraction instead, so that a failure
+there is still resumable.</p></dd>
+
+
+<dt id="arg-prepared">prepared<a class="anchor" aria-label="anchor" href="#arg-prepared"></a></dt>
+<dd><p>Internal. <code>TRUE</code> means the caller has already created or
+cleaned <code>output</code> and this function must not delete it.</p></dd>
 
 
 <dt id="arg-output">output<a class="anchor" aria-label="anchor" href="#arg-output"></a></dt>
@@ -93,7 +156,7 @@ Defaults to <code>FALSE</code></p></dd>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -116,26 +116,66 @@
 <span><span class="va">snowball</span><span class="op">$</span><span class="va">nodes</span></span>
 <span><span class="va">snowball</span><span class="op">$</span><span class="va">edges</span></span></code></pre></div>
 </div>
-</section><section class="section level2" data-number="4"><h2 data-number="4" id="output-layout">
-<span class="header-section-number">4</span> Output layout<a class="anchor" aria-label="anchor" href="#output-layout"></a>
+</section><section class="section level2" data-number="4"><h2 data-number="4" id="node-roles">
+<span class="header-section-number">4</span> Node roles<a class="anchor" aria-label="anchor" href="#node-roles"></a>
 </h2>
-<p>A snowball search writes a folder structure similar to the following:</p>
+<p><code>id</code> is a key in <code>nodes/</code>: every work appears exactly once. A work can still hold more than one role — a keypaper that cites another keypaper is both — so the roles are three independent flags:</p>
+<ul>
+<li>
+<code>is_keypaper</code> — one of the supplied keypapers</li>
+<li>
+<code>is_citing</code> — cites at least one keypaper</li>
+<li>
+<code>is_cited</code> — is cited by at least one keypaper</li>
+</ul>
+<p>Any combination can be <code>TRUE</code>, and at least one always is.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">snowball</span><span class="op">$</span><span class="va">nodes</span>, <span class="va">is_citing</span> <span class="op">&amp;</span> <span class="va">is_cited</span><span class="op">)</span>   <span class="co"># works in both directions</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">snowball</span><span class="op">$</span><span class="va">nodes</span>, <span class="op">!</span><span class="va">is_keypaper</span><span class="op">)</span>           <span class="co"># the snowballed neighbourhood</span></span></code></pre></div>
+</div>
+<p><code>relation</code> is also present and is the hive partition key, but it records only the highest-precedence role (<code>keypaper</code> &gt; <code>citing</code> &gt; <code>cited</code>). So <code>relation == "cited"</code> does <strong>not</strong> find every cited work — <code>is_cited</code> does. Filter on the booleans; use <code>relation</code> for partition pruning.</p>
+</section><section class="section level2" data-number="5"><h2 data-number="5" id="offline-searching-a-local-snapshot">
+<span class="header-section-number">5</span> Offline: searching a local snapshot<a class="anchor" aria-label="anchor" href="#offline-searching-a-local-snapshot"></a>
+</h2>
+<p>With a local OpenAlex snapshot and its indexes, the whole search runs without touching the API, and is reproducible against a fixed corpus vintage.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/pro_snowball.html">pro_snowball</a></span><span class="op">(</span></span>
+<span>  identifier <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"W2741809807"</span>, <span class="st">"W2755950973"</span><span class="op">)</span>,</span>
+<span>  snapshot <span class="op">=</span> <span class="st">"/path/to/openalex/parquet"</span>,</span>
+<span>  select <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id"</span>, <span class="st">"doi"</span>, <span class="st">"title"</span>, <span class="st">"publication_year"</span><span class="op">)</span>,</span>
+<span>  output <span class="op">=</span> <span class="st">"./snowball_offline"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<p>This needs the indexes built by <code><a href="https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html" class="external-link">openalexSnapshot::build_corpus_index()</a></code> and <code>build_citation_index()</code>, plus <code>build_doi_index()</code> if keypapers are given as DOIs. <code>select=</code> is worth using: retrieving records is ~92% of the run, and naming only the columns you need cuts the bytes read substantially.</p>
+</section><section class="section level2" data-number="6"><h2 data-number="6" id="large-searches">
+<span class="header-section-number">6</span> Large searches<a class="anchor" aria-label="anchor" href="#large-searches"></a>
+</h2>
+<p>Two things matter once you have more than a handful of keypapers.</p>
+<p><strong>Pass them all to one call.</strong> Cost is dominated by scattered reads across the corpus, and the set of files touched saturates — ten times the keypapers costs roughly twice the time, not ten times. A loop of separate calls re-pays that cost every iteration.</p>
+<p><strong>Declare how many searches you run at once.</strong> Each DuckDB instance otherwise assumes it owns ~80% of the machine:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>openalexSnowball.duckdb_config <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>concurrency <span class="op">=</span> <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<p><code>workers =</code> parallelises fetching and conversion. <code>resume = TRUE</code> continues an interrupted run instead of restarting it — note the default <code>output</code> lives in the session’s temporary directory, so pass a persistent <code>output =</code> if you want to resume after a crash.</p>
+</section><section class="section level2" data-number="7"><h2 data-number="7" id="output-layout">
+<span class="header-section-number">7</span> Output layout<a class="anchor" aria-label="anchor" href="#output-layout"></a>
+</h2>
+<p>A completed search contains:</p>
 <pre><code>snowball/
-├── cited_json/
-├── cited_jsonl/
-├── citing_json/
-├── citing_jsonl/
-├── edges/
-├── keypaper_json/
-├── keypaper_jsonl/
-├── keypaper_parquet/
-└── nodes/</code></pre>
-</section><section class="section level2" data-number="5"><h2 data-number="5" id="tips">
-<span class="header-section-number">5</span> Tips<a class="anchor" aria-label="anchor" href="#tips"></a>
+├── nodes/                     # partitioned by relation=
+├── edges/                     # partitioned by edge_type=
+├── snowball_meta.parquet      # provenance: mode, vintage, keypapers
+└── _snowball_run.parquet      # parameters, used by resume</code></pre>
+<p>The <code>*_json/</code> and <code>*_parquet/</code> working directories exist only while the search runs and are removed once <code>edges/</code> is written; <code>keep_intermediates = TRUE</code> keeps them.</p>
+</section><section class="section level2" data-number="8"><h2 data-number="8" id="tips">
+<span class="header-section-number">8</span> Tips<a class="anchor" aria-label="anchor" href="#tips"></a>
 </h2>
 <ul>
 <li>Use <code>return_data = FALSE</code> to keep large datasets on disk.</li>
-<li>Use <code>edge_type = "core"</code> when you only need edges involving keypapers.</li>
+<li>Use <code>edge_type = "core"</code> when you only need edges involving keypapers. The three edge types are mutually exclusive, so combining them is a union of disjoint sets rather than a widening.</li>
 </ul></section><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
@@ -229,7 +269,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

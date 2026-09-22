@@ -12,3 +12,5 @@
   : A function to get the nodes for a snowball search
 - [`read_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/read_snowball.md)
   : Read snowball from Parquet Dataset
+- [`snowball_duckdb_config()`](https://openalexpro.github.io/openalexSnowball/reference/snowball_duckdb_config.md)
+  : Configuration for the DuckDB connections used by a snowball

@@ -7,8 +7,11 @@ openalexPro's on-disk processing pipeline and store results in Parquet.
 
 Useful links:
 
-- <https://github.com/rkrug/openalexSnowball>
+- <https://github.com/openalexPro/openalexSnowball>
 
-- <https://rkrug.github.io/openalexSnowball/>
+- <https://openalexpro.github.io/openalexSnowball/>
 
-- Report bugs at <https://github.com/rkrug/openalexSnowball/issues>
+- [doi:10.5281/zenodo.20448982](https://doi.org/10.5281/zenodo.20448982)
+
+- Report bugs at
+  <https://github.com/openalexPro/openalexSnowball/issues>
