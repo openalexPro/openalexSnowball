@@ -126,14 +126,17 @@ Comparison against `openalexR::oa_snowball()` is the correctness anchor (`test-0
 | `pkgdown.yaml` | — | Builds documentation site |
 | `rhub.yaml` | — | R-hub comprehensive environment checks |
 
-**Ecosystem dependencies are pinned to `@dev` in all three workflows**
-(`github::openalexPro/openalexPro@dev`,
-`github::openalexPro/openalexSnapshot@dev`). Without the pin, pak resolves
-them from the *default* branch, where the versions are far below this
-package's `Imports` floors, and dependency resolution fails before a single
-test runs — which is exactly why this suite had never executed on CI before
-0.15.0. **Drop the `@dev` pins once openalexPro >= 0.12.0 and
-openalexSnapshot >= 0.3.1 reach `main`.**
+**Both ecosystem dependencies must be listed in `extra-packages`** in all
+three workflows (`github::openalexPro/openalexPro`,
+`github::openalexPro/openalexSnapshot`). pak resolves them from the default
+branch, so the versions there must satisfy this package's `Imports` floors.
+
+openalexSnapshot was missing from that list entirely until 0.15.0, so
+dependency resolution failed before a single test ran — which is why this
+suite had never executed on CI. They were temporarily pinned to `@dev` while
+`main` lagged; the pins came off once openalexPro 0.12.1 and openalexSnapshot
+0.3.1 reached `main`. If a future release raises a floor again, pin to `@dev`
+until the dependency is released, then unpin.
 
 ## Notes
 
