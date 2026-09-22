@@ -8,6 +8,16 @@ pro_snowball_get_nodes(
   identifier = NULL,
   doi = NULL,
   limit = NULL,
+  snapshot = NULL,
+  max_results = 100000L,
+  workers = 1L,
+  chunk_limit = NULL,
+  select = NULL,
+  endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
+  resume = FALSE,
+  cleanup = TRUE,
+  prepared = FALSE,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 )
@@ -20,6 +30,39 @@ pro_snowball_get_nodes(
 \item{limit}{If \code{citedOnly} only works cited by the keypaper are retrieved,
 \code{citingOnly} retrieves only works citing the keypaper. Default: \code{NULL}
 where all will be retrieved. 'none' is equal to \code{NULL}}
+
+\item{snapshot}{Path to a local OpenAlex snapshot (either a root directory
+containing \verb{parquet/}, or the \verb{parquet/} directory itself). When supplied,
+nodes are gathered offline from the snapshot instead of the OpenAlex API.
+Requires the indexes built by \code{openalexSnapshot::build_corpus_index()} and
+\code{build_citation_index()}. Default \code{NULL} (use the API).}
+
+\item{max_results}{Snapshot mode only: refuse to expand a keypaper with more
+citing works than this. See \code{openalexSnapshot::get_citing()}.}
+
+\item{workers}{Number of parallel workers. Default \code{1} (sequential).}
+
+\item{chunk_limit}{API mode only: ids per filter URL. \code{NULL} (default)
+derives one from \code{workers}; see \code{pro_snowball()}.}
+
+\item{select}{Snapshot mode only: node columns to keep. See \code{pro_snowball()}.}
+
+\item{endpoint}{API mode only: base URL of the OpenAlex API. See
+\code{pro_snowball()}.}
+
+\item{duckdb_config}{DuckDB settings for the assembly connection. See
+\code{\link[=snowball_duckdb_config]{snowball_duckdb_config()}}.}
+
+\item{resume}{Keep an existing \code{output} and continue from where a previous
+run stopped, instead of deleting it. Default \code{FALSE}.}
+
+\item{cleanup}{Remove the intermediate \verb{*_json} / \verb{*_parquet} directories
+once the nodes are assembled. Default \code{TRUE}. \code{\link[=pro_snowball]{pro_snowball()}} passes
+\code{FALSE} and cleans up after edge extraction instead, so that a failure
+there is still resumable.}
+
+\item{prepared}{Internal. \code{TRUE} means the caller has already created or
+cleaned \code{output} and this function must not delete it.}
 
 \item{output}{parquet dataset; default: temporary directory.}
 

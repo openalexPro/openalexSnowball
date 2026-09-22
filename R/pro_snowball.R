@@ -2,9 +2,197 @@
 #' tibble/data frame.
 #' @param identifier Character vector of openalex identifiers.
 #' @param doi Character vector of dois.
+#' @param snapshot Path to a local OpenAlex snapshot (either a root directory
+#'   containing `parquet/`, or the `parquet/` directory itself). When supplied,
+#'   the whole snowball is built **offline** from the snapshot instead of the
+#'   OpenAlex API; when `NULL` (the default) behaviour is unchanged.
+#'
+#'   Snapshot mode requires the indexes built by
+#'   `openalexSnapshot::build_corpus_index()` and
+#'   `openalexSnapshot::build_citation_index()`, plus
+#'   `openalexSnapshot::build_doi_index()` if keypapers are given as DOIs.
+#'
+#'   The output construct is identical -- `nodes/` and `edges/` partitioned the
+#'   same way, readable by [read_snowball()] -- but the **node columns differ**,
+#'   because snapshot records are not API records. Snapshot nodes carry
+#'   whatever the works corpus holds plus `oa_input` and `relation`; there is no
+#'   `page` column, which is an API pagination artefact. Results are also frozen
+#'   at the snapshot's vintage rather than live.
+#' @param max_results Snapshot mode only: refuse to expand a keypaper with more
+#'   citing works than this. A heavily cited work can have hundreds of thousands
+#'   of citers, and extracting records for all of them would read most of the
+#'   corpus.
+#' @param workers Number of parallel workers. Default `1`, which is sequential
+#'   and reproduces the previous behaviour exactly.
+#'
+#'   Both paths gain from raising it, but in different places. **API mode**
+#'   parallelises across the chunked query URLs -- `pro_query()` chunks
+#'   `cites`/`cited_by` at 50 ids, so a snowball over many keypapers becomes
+#'   many URLs that were previously fetched one at a time -- and across the
+#'   JSON-to-parquet conversion. **Snapshot mode** parallelises reading the
+#'   corpus files that the node set is scattered over, which is the dominant
+#'   cost once the result set is large.
+#'
+#'   Raising it buys little for a snowball over a handful of keypapers, where
+#'   fixed costs dominate; it matters at hundreds or thousands. Be aware that
+#'   in API mode more workers means more concurrent requests, so keep it
+#'   within the OpenAlex rate limit for your key.
+#' @param chunk_limit API mode only: how many keypaper ids go into one filter
+#'   URL. `NULL` (the default) derives a value from `workers`.
+#'
+#'   `openalexPro::pro_query()` splits `cites`/`cited_by` filters into URLs of
+#'   `chunk_limit` ids, and `pro_request()` fetches those URLs in parallel --
+#'   but `pro_query()` has no knowledge of `workers`, so the fixed 50-id
+#'   default can leave workers idle: 100 keypapers over 6 workers is two chunks
+#'   and four idle processes. The derived value targets roughly twice as many
+#'   chunks as workers, giving the scheduler slack to balance with, since
+#'   chunks are split by id count while cost follows result volume.
+#'
+#'   At `workers = 1` the derived value is 50, so behaviour is unchanged.
+#' @param select Snapshot mode only: which node columns to keep. `NULL` (the
+#'   default) keeps every column the corpus holds, matching the API path.
+#'
+#'   This is the single biggest cost in snapshot mode. Works records carry ~51
+#'   columns of deeply nested structs, and extracting all of them dominates the
+#'   run: measured over 427 nodes, **177.8 s for all columns against 16.7 s for
+#'   three** -- a 10.6x difference, or 20.3x combined with `workers = 6`. If you
+#'   only need the citation graph and a little metadata, name those columns.
+#'   `abstract` alone is 11.12 GB of the corpus and is worth dropping on its
+#'   own. See the pooling section below for why this matters and what else to
+#'   do about it.
+#'
+#'   `id` and `referenced_works` are always retained regardless: the first
+#'   identifies nodes, the second is what the edge extraction unnests.
+#' @param endpoint API mode only: base URL of the OpenAlex API. Defaults to
+#'   `"https://api.openalex.org"`.
+#'
+#'   Point this at a self-hosted OpenAlex instance (OurResearch publish the
+#'   production stack as `ourresearch/openalex-elastic-api`) or at a mock
+#'   server in tests. The API semantics are unchanged -- the same `cites` /
+#'   `cited_by` filters and cursor pagination -- so only the host differs, and
+#'   a self-hosted instance carries no rate limit, which is what makes large
+#'   `workers` values worthwhile.
+#'
+#'   Trailing slashes are stripped. Ignored in snapshot mode, where no request
+#'   is made.
+#' @param duckdb_config DuckDB settings for the two connections this function
+#'   opens. `NULL` (the default) uses [snowball_duckdb_config()]'s defaults,
+#'   optionally overridden field-by-field by
+#'   `getOption("openalexSnowball.duckdb_config")`.
+#'
+#'   The defaults matter at scale. DuckDB's own are a `memory_limit` of ~80%
+#'   of system RAM **per instance** and a spill directory relative to the
+#'   working directory -- both wrong when several `pro_snowball()` calls run
+#'   from a worker pool. Declare how many you run at once and the budget is
+#'   divided accordingly:
+#'
+#'   ```r
+#'   options(openalexSnowball.duckdb_config = list(concurrency = 4))
+#'   ```
+#' @param resume Continue an interrupted run in an existing `output` instead
+#'   of deleting it. Default `FALSE`, which preserves the previous behaviour
+#'   exactly.
+#'
+#'   Stages already completed are skipped, and within the fetch stage only
+#'   the query chunks that did not finish are re-requested. Resuming with
+#'   different keypapers, `snapshot`, `endpoint`, `max_results` or `select`
+#'   is an error: it would merge two different snowballs into one output.
+#'   `workers`, `verbose` and `duckdb_config` may differ freely, which is the
+#'   point -- "resume with fewer workers and a smaller memory limit" is the
+#'   usual reason to resume.
+#'
+#'   Note that the default `output` lives under [tempdir()] and is removed
+#'   when the R session ends, so cross-session resume needs an explicit,
+#'   persistent `output =`.
+#' @param keep_intermediates Keep the `*_json` / `*_parquet` working
+#'   directories instead of deleting them once `edges/` is written. Default
+#'   `FALSE`. Useful for debugging or for repeated resumes.
 #' @param output parquet dataset; default: temporary directory.
 #' @param verbose Logical indicating whether to show a verbose information.
 #'   Defaults to `FALSE`
+#'
+#' @section Snapshot mode -- pool your keypapers into one call:
+#'
+#' In snapshot mode almost all the time goes on **retrieving the node records**,
+#' not on finding which works the snowball contains. Measured over 100 random
+#' keypapers against the full corpus:
+#'
+#' | phase | time | share |
+#' | --- | ---: | ---: |
+#' | `get_citing()` -- citation index | 7.3 s | 7% |
+#' | `get_cited()` -- `referenced_works` | 1.2 s | 1% |
+#' | record retrieval | 95.5 s | **92%** |
+#'
+#' The indexes are not the bottleneck, and neither is the id-to-location
+#' lookup. The cost is the *scattered read* that follows it. Those 100
+#' keypapers produced 3,121 nodes living in **1,222 of the corpus's 2,127
+#' parquet files** -- 57% of the corpus, at an average of 2.6 wanted rows per
+#' file opened. Each file still costs an open, a footer parse and a row-group
+#' decompression.
+#'
+#' Two things follow.
+#'
+#' **Name the columns you need.** `select=` cannot reduce how many files are
+#' opened, but it cuts the bytes decompressed inside each one, which is where
+#' its large speed-up comes from.
+#'
+#' **Pass all keypapers to one call rather than looping.** The file set
+#' saturates: it cannot exceed 2,127 however many keypapers you give, and 100
+#' keypapers already reach 1,222 of them. Cost is therefore strongly concave in
+#' the number of keypapers -- ten times the keypapers costs roughly twice the
+#' time, not ten times. A loop of 200 separate calls re-pays the scattered-read
+#' cost 200 times over largely the same files:
+#'
+#' ```r
+#' # avoid -- pays the corpus-wide scattered read 200 times
+#' for (grp in groups) pro_snowball(identifier = grp, snapshot = snap, ...)
+#'
+#' # prefer -- one scattered read, one deduplicated result
+#' pro_snowball(identifier = unlist(groups), snapshot = snap, ...)
+#' ```
+#'
+#' The caveat is that pooling produces **one** snowball. `oa_input`,
+#' `relation`, `is_keypaper` / `is_citing` / `is_cited` and `edge_type` are all
+#' defined relative to the keypaper set of that call, so a pooled run cannot
+#' tell you which of your original groups a given node came from. If you need
+#' the groups kept apart, pool anyway and re-derive membership afterwards by
+#' joining the edges back to each group's keypaper ids -- that is far cheaper
+#' than re-reading the corpus per group.
+#'
+#' This applies only to `snapshot=`. API mode is network-bound and scales
+#' roughly linearly in keypapers; see `workers` and `chunk_limit` there.
+#'
+#' @section Node roles:
+#'
+#' `id` is a key in `nodes/`: every OpenAlex work appears exactly once,
+#' whichever backend produced it. A work can nonetheless hold more than one
+#' role in the same snowball -- a keypaper that cites another keypaper is both
+#' `keypaper` and `citing` -- so the roles are recorded as three independent
+#' flags:
+#'
+#' * `is_keypaper` -- the work is one of the supplied keypapers.
+#' * `is_citing` -- the work cites at least one keypaper.
+#' * `is_cited` -- the work is cited by at least one keypaper.
+#'
+#' Any combination can be `TRUE`, and at least one always is. The flags
+#' describe a work's role *in this snowball*, not a property of the work.
+#'
+#' ```r
+#' sb <- read_snowball(out, return_data = TRUE)
+#'
+#' subset(sb$nodes, is_citing & is_cited)   # works in both directions
+#' subset(sb$nodes, !is_keypaper)           # the snowballed neighbourhood
+#' ```
+#'
+#' `relation` is kept alongside them and is the hive partition key of
+#' `nodes/`, but it records only the *highest-precedence* role (`keypaper` >
+#' `citing` > `cited`) and is therefore lossy: a work that is both citing and
+#' cited reports `relation = "citing"`, so `relation == "cited"` does **not**
+#' find every cited work. Filter on the booleans; use `relation` only for
+#' partition pruning.
+#'
+#' Both backends behave identically here -- the flags are computed at node
+#' assembly, after the API or snapshot rows have been collected.
 #'
 #' @return The folder of the results containing multiple subfolders.
 #'
@@ -19,16 +207,42 @@
 pro_snowball <- function(
   identifier = NULL,
   doi = NULL,
+  snapshot = NULL,
+  max_results = 100000L,
+  workers = 1L,
+  chunk_limit = NULL,
+  select = NULL,
+  endpoint = "https://api.openalex.org",
+  duckdb_config = NULL,
+  resume = FALSE,
+  keep_intermediates = FALSE,
   output = tempfile(fileext = ".snowball"),
   verbose = FALSE
 ) {
+  workers <- .check_workers(workers)
+  endpoint <- .check_endpoint(endpoint)
+  # Validate early so a typo'd field fails before hours of fetching.
+  invisible(.osb_resolve_duckdb_config(duckdb_config))
   if (!xor(is.null(identifier), is.null(doi))) {
     stop("Either `identifier` or `doi` needs to be specified!")
   }
 
   output <- normalizePath(output, mustWork = FALSE)
 
-  if (dir.exists(output)) {
+  params <- .osb_run_params(identifier, doi, snapshot, limit = NULL,
+                            endpoint = endpoint, max_results = max_results,
+                            select = select)
+
+  if (isTRUE(resume) && dir.exists(output)) {
+    # Refuse to continue a *different* snowball into this directory: the
+    # result would be a silent, unrecoverable mixture of two runs.
+    .osb_check_manifest(output, params)
+    if (.osb_stage_done(output, "edges")) {
+      if (verbose) message("Nothing to do: `", output, "` is already complete.")
+      return(output)
+    }
+    if (verbose) message("Resuming in `", output, "`.")
+  } else if (dir.exists(output)) {
     if (verbose) {
       message(
         "Deleting and recreating `",
@@ -39,26 +253,60 @@ pro_snowball <- function(
     unlink(output, recursive = TRUE)
     dir.create(output, recursive = TRUE)
   }
+  dir.create(output, recursive = TRUE, showWarnings = FALSE)
+  .osb_write_manifest(output, params)
 
-  nodes <- pro_snowball_get_nodes(
+  if (isTRUE(resume) && .osb_is_temp(output)) {
+    warning("`resume = TRUE` with the default `output` under tempdir(): ",
+            "nothing will survive this R session. Pass a persistent ",
+            "`output =` for cross-session resume.", call. = FALSE)
+  }
+
+  # Any failure from here on is resumable, and the message must say where
+  # the partial work is -- not knowing that is what cost six hours once.
+  stage <- "get_nodes"
+  on.exit(NULL)
+
+  nodes <- withCallingHandlers(
+    pro_snowball_get_nodes(
     identifier = identifier,
     doi = doi,
+    snapshot = snapshot,
+    max_results = max_results,
+    workers = workers,
+    chunk_limit = chunk_limit,
+    select = select,
+    endpoint = endpoint,
+    duckdb_config = duckdb_config,
+    resume = resume,
+    cleanup = FALSE,
+    prepared = TRUE,
     output = output,
     verbose = verbose
-  )
-  edges <- pro_snowball_extract_edges(
-    nodes = nodes,
-    output = output,
-    verbose = verbose
+    ),
+    error = function(e) .osb_rethrow_resumable(output, stage, e)
   )
 
-  unlink(
-    c(
-      file.path(output, "keypaper_json"),
-      file.path(output, "keypaper_jsonl")
+  stage <- "extract_edges"
+  edges <- withCallingHandlers(
+    pro_snowball_extract_edges(
+      nodes = nodes,
+      output = output,
+      duckdb_config = duckdb_config,
+      verbose = verbose
     ),
-    recursive = TRUE
+    error = function(e) .osb_rethrow_resumable(output, stage, e)
   )
+  .osb_mark_done(output, "edges")
+
+  # Cleanup is deferred to here rather than done inside get_nodes(), so that
+  # a failure in edge extraction still leaves the fetched data to resume
+  # from. Peak disk is higher as a result: the intermediates coexist with
+  # nodes/ and edges/ instead of being freed before them.
+  if (!isTRUE(keep_intermediates)) {
+    .osb_clean_intermediates(output)
+    unlink(file.path(output, "keypaper_jsonl"), recursive = TRUE)
+  }
 
   # Return path to snowball ------------------------------------------------
 
