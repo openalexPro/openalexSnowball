@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -36,6 +36,17 @@
       <small>Source: <a href="https://github.com/openalexPro/openalexSnowball/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.15.1" id="openalexsnowball-0151">openalexSnowball 0.15.1<a class="anchor" aria-label="anchor" href="#openalexsnowball-0151"></a></h2>
+<div class="section level3">
+<h3 id="tests-no-longer-fetch-live-data-when-a-recording-does-not-match-0-15-1">Tests no longer fetch live data when a recording does not match<a class="anchor" aria-label="anchor" href="#tests-no-longer-fetch-live-data-when-a-recording-does-not-match-0-15-1"></a></h3>
+<p>The tests failed on r-universe after openalexPro 0.13.0: it sends different requests (the API key as a header instead of <code>api_key</code> in the URL, and free <code>/query</code> calls for the readable query record), which were not in the test recordings. vcr passed them to the live API, so <code><a href="../reference/pro_snowball.html">pro_snowball()</a></code> saw today’s OpenAlex data while the openalexR reference came from the old recording, and the “zero diff” tests failed (W3045921891 now cites W2787560479 and W4255375128 and no longer W2166481425).</p>
+<ul><li>Both recordings (<code>oa_snowball</code>, <code>pro_snowball</code>) were made again together, with openalexPro 0.13.0 and openalexR 3.1.2, so both see the same data.</li>
+<li>vcr’s record mode is <code>"none"</code>: a request missing from a recording fails instead of going to the live API. <code>OPENALEXSNOWBALL_RECORD_CASSETTES=true</code> records all recordings again.</li>
+<li>The API key header is masked in recordings and not used for matching.</li>
+<li>Requires <code>openalexPro (&gt;= 0.13.0)</code>, and <code>openalexR (&gt;= 3.1.2)</code> for the tests: openalexR 3.0.1 fails on current OpenAlex responses (duplicated <code>doi</code> column).</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.15.0" id="openalexsnowball-0150">openalexSnowball 0.15.0<a class="anchor" aria-label="anchor" href="#openalexsnowball-0150"></a></h2>
 <div class="section level3">

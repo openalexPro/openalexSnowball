@@ -1,5 +1,29 @@
 # Changelog
 
+## openalexSnowball 0.15.1
+
+### Tests no longer fetch live data when a recording does not match
+
+The tests failed on r-universe after openalexPro 0.13.0: it sends
+different requests (the API key as a header instead of `api_key` in the
+URL, and free `/query` calls for the readable query record), which were
+not in the test recordings. vcr passed them to the live API, so
+[`pro_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/pro_snowball.md)
+saw today’s OpenAlex data while the openalexR reference came from the
+old recording, and the “zero diff” tests failed (W3045921891 now cites
+W2787560479 and W4255375128 and no longer W2166481425).
+
+- Both recordings (`oa_snowball`, `pro_snowball`) were made again
+  together, with openalexPro 0.13.0 and openalexR 3.1.2, so both see the
+  same data.
+- vcr’s record mode is `"none"`: a request missing from a recording
+  fails instead of going to the live API.
+  `OPENALEXSNOWBALL_RECORD_CASSETTES=true` records all recordings again.
+- The API key header is masked in recordings and not used for matching.
+- Requires `openalexPro (>= 0.13.0)`, and `openalexR (>= 3.1.2)` for the
+  tests: openalexR 3.0.1 fails on current OpenAlex responses (duplicated
+  `doi` column).
+
 ## openalexSnowball 0.15.0
 
 ### Bug fix: `pro_snowball()` ran out of memory assembling large node sets
