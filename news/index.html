@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -33,9 +33,21 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/openalexPro/openalexSnowball/blob/v0.15.1/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/openalexPro/openalexSnowball/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.15.2" id="openalexsnowball-0152">openalexSnowball 0.15.2<a class="anchor" aria-label="anchor" href="#openalexsnowball-0152"></a></h2>
+<div class="section level3">
+<h3 id="bug-fix-two-more-memory-mapped-parquet-reads-unsafe-on-windows-0-15-2">Bug fix: two more memory-mapped parquet reads, unsafe on Windows<a class="anchor" aria-label="anchor" href="#bug-fix-two-more-memory-mapped-parquet-reads-unsafe-on-windows-0-15-2"></a></h3>
+<p><code><a href="https://arrow.apache.org/docs/r/reference/read_parquet.html" class="external-link">arrow::read_parquet()</a></code> memory-maps by default and holds the mapping for the rest of the session; Windows then refuses to write that file. 0.15.0 fixed this for the <code>_snowball_run.parquet</code> manifest but missed two sidecar reads:</p>
+<ul><li>
+<code>read_snowball(meta = TRUE)</code> mapped <code>snowball_meta.parquet</code>, so re-running <code><a href="../reference/pro_snowball.html">pro_snowball()</a></code> into the same <code>output</code> afterwards failed.</li>
+<li>
+<code>pro_snowball(snapshot =)</code> mapped the snapshot’s <code>works_cite_idx/_index_meta.parquet</code>, so a later <code><a href="https://rdrr.io/pkg/openalexSnapshot/man/build_citation_index.html" class="external-link">openalexSnapshot::build_citation_index()</a></code> failed.</li>
+</ul><p>Both now read with <code>mmap = FALSE</code>. Found while fixing the same defect in openalexSnapshot 0.3.2; neither was reachable from the test suite, which is why Windows CI stayed green.</p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.15.1" id="openalexsnowball-0151">openalexSnowball 0.15.1<a class="anchor" aria-label="anchor" href="#openalexsnowball-0151"></a></h2>
 <div class="section level3">

@@ -1,5 +1,27 @@
 # Changelog
 
+## openalexSnowball 0.15.2
+
+### Bug fix: two more memory-mapped parquet reads, unsafe on Windows
+
+[`arrow::read_parquet()`](https://arrow.apache.org/docs/r/reference/read_parquet.html)
+memory-maps by default and holds the mapping for the rest of the
+session; Windows then refuses to write that file. 0.15.0 fixed this for
+the `_snowball_run.parquet` manifest but missed two sidecar reads:
+
+- `read_snowball(meta = TRUE)` mapped `snowball_meta.parquet`, so
+  re-running
+  [`pro_snowball()`](https://openalexpro.github.io/openalexSnowball/reference/pro_snowball.md)
+  into the same `output` afterwards failed.
+- `pro_snowball(snapshot =)` mapped the snapshot’s
+  `works_cite_idx/_index_meta.parquet`, so a later
+  [`openalexSnapshot::build_citation_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_citation_index.html)
+  failed.
+
+Both now read with `mmap = FALSE`. Found while fixing the same defect in
+openalexSnapshot 0.3.2; neither was reachable from the test suite, which
+is why Windows CI stayed green.
+
 ## openalexSnowball 0.15.1
 
 ### Tests no longer fetch live data when a recording does not match
