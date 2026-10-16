@@ -147,7 +147,10 @@ read_snowball <- function(
   if (isTRUE(meta)) {
     meta_file <- file.path(snowball, "snowball_meta.parquet")
     result$meta <- if (file.exists(meta_file)) {
-      as.data.frame(arrow::read_parquet(meta_file))
+      # mmap = FALSE: arrow holds the mapping, and Windows then refuses
+      # any rewrite of this sidecar -- i.e. re-running pro_snowball() into
+      # the same output in a session that has read it.
+      as.data.frame(arrow::read_parquet(meta_file, mmap = FALSE))
     } else {
       NULL
     }
