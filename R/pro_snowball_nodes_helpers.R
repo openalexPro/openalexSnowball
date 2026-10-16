@@ -510,7 +510,9 @@
     )
     if (file.exists(meta_file)) {
       built_at <- as.character(
-        as.data.frame(arrow::read_parquet(meta_file))$built_at[[1L]]
+        # mmap = FALSE, or this call leaves the snapshot's index sidecar
+        # mapped and a later build_citation_index() fails on Windows.
+        as.data.frame(arrow::read_parquet(meta_file, mmap = FALSE))$built_at[[1L]]
       )
     }
   }
