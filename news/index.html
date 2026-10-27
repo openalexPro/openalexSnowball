@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -33,9 +33,15 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/openalexPro/openalexSnowball/blob/v0.15.3/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/openalexPro/openalexSnowball/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.15.4" id="openalexsnowball-0154">openalexSnowball 0.15.4<a class="anchor" aria-label="anchor" href="#openalexsnowball-0154"></a></h2>
+<ul><li>License changed from GPL (&gt;= 2) to MIT.</li>
+<li>
+<code>read_snowball(meta = TRUE)</code> returned no <code>meta</code> element when the snowball has no <code>snowball_meta.parquet</code> sidecar. As documented, <code>meta</code> is now always present, and <code>NULL</code> when there is no sidecar.</li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.15.3" id="openalexsnowball-0153">openalexSnowball 0.15.3<a class="anchor" aria-label="anchor" href="#openalexsnowball-0153"></a></h2>
 <ul><li>Requires openalexPro (&gt;= 0.14.0). With current DuckDB, openalexPro 0.13.0 fails to convert works with abstracts (“Deprecated lambda arrow (-&gt;) detected”), so <code><a href="../reference/pro_snowball.html">pro_snowball()</a></code> stopped in stage <code>get_nodes</code>.</li>
