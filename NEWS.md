@@ -1,3 +1,5 @@
+# openalexSnowball (development version)
+
 # openalexSnowball 0.15.2
 
 ## Bug fix: two more memory-mapped parquet reads, unsafe on Windows
