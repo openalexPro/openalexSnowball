@@ -1,5 +1,7 @@
 # openalexSnowball (development version)
 
+- License changed from GPL (>= 2) to MIT.
+
 # openalexSnowball 0.15.3
 
 - Requires openalexPro (>= 0.14.0). With current DuckDB, openalexPro 0.13.0
