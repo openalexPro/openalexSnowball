@@ -163,3 +163,35 @@ test_that("resume with a tempdir output warns that nothing will survive", {
     "nothing will survive"
   )
 })
+
+test_that("a manifest that cannot be put in place is an error, leaving no temp file", {
+  out <- withr::local_tempdir()
+  # A directory squatting on the manifest path makes the rename fail.
+  squat <- .osb_manifest_path(out)
+  dir.create(squat)
+  writeLines("x", file.path(squat, "keep"))
+  params <- .osb_run_params("W1", NULL, NULL, limit = NULL,
+                            endpoint = "https://api.openalex.org",
+                            max_results = 10, select = NULL)
+
+  expect_error(
+    suppressWarnings(.osb_write_manifest(out, params)),
+    "Could not write the run manifest"
+  )
+  expect_false(file.exists(paste0(squat, ".tmp")))
+})
+
+test_that("the resume hint lists completed stages and omits the tempdir warning off tempdir", {
+  out <- withr::local_tempdir()
+  .osb_mark_done(out, "nodes")
+  local_mocked_bindings(.osb_is_temp = function(output) FALSE)
+
+  err <- tryCatch(
+    .osb_rethrow_resumable(out, "extract_edges", simpleError("disk full")),
+    error = function(e) conditionMessage(e)
+  )
+  expect_match(err, "Snowball failed during stage 'extract_edges'")
+  expect_match(err, "Completed stages: nodes")
+  expect_match(err, "Caused by: disk full")
+  expect_no_match(err, "tempdir")
+})
