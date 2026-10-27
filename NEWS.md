@@ -1,6 +1,9 @@
 # openalexSnowball (development version)
 
 - License changed from GPL (>= 2) to MIT.
+- `read_snowball(meta = TRUE)` returned no `meta` element when the snowball has
+  no `snowball_meta.parquet` sidecar. As documented, `meta` is now always
+  present, and `NULL` when there is no sidecar.
 
 # openalexSnowball 0.15.3
 

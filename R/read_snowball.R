@@ -146,14 +146,15 @@ read_snowball <- function(
   # always written to disk regardless, so nothing is lost by defaulting off.
   if (isTRUE(meta)) {
     meta_file <- file.path(snowball, "snowball_meta.parquet")
-    result$meta <- if (file.exists(meta_file)) {
+    # `[<-` with list(): `result$meta <- NULL` would drop the element.
+    result["meta"] <- list(if (file.exists(meta_file)) {
       # mmap = FALSE: arrow holds the mapping, and Windows then refuses
       # any rewrite of this sidecar -- i.e. re-running pro_snowball() into
       # the same output in a session that has read it.
       as.data.frame(arrow::read_parquet(meta_file, mmap = FALSE))
     } else {
       NULL
-    }
+    })
   }
 
   return(result)

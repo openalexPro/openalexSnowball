@@ -111,7 +111,6 @@ test_that("read_snowball(meta = TRUE) still reads a snowball without sidecar", {
 })
 
 test_that("read_snowball(meta = TRUE) always returns a `meta` element", {
-  skip("Known bug: `result$meta <- NULL` drops the element when the sidecar is absent")
   # ?read_snowball: meta = TRUE returns provenance "as a third list element
   # `meta`"; the code means NULL there, but assigning NULL removes it.
   sb <- read_snowball(snowball_without_meta(), meta = TRUE)
