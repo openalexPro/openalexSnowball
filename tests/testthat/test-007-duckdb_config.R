@@ -154,3 +154,58 @@ test_that("pro_snowball validates duckdb_config before doing any work", {
     "Unknown `duckdb_config` field"
   )
 })
+
+test_that(".osb_con applies the optional spill-cap and open-file settings", {
+  out <- withr::local_tempdir()
+  duck <- .osb_con(
+    .osb_resolve_duckdb_config(list(
+      max_temp_directory_size = "2GiB",
+      partitioned_write_max_open_files = 7L,
+      temp_directory = NULL
+    )),
+    tag = "edges", output = out
+  )
+  on.exit(DBI::dbDisconnect(duck$con, shutdown = TRUE), add = TRUE)
+
+  get1 <- function(k) {
+    DBI::dbGetQuery(duck$con,
+                    sprintf("SELECT current_setting('%s') AS v", k))$v[[1L]]
+  }
+  expect_equal(.osb_parse_bytes(get1("max_temp_directory_size")), 2 * 1024^3,
+               tolerance = 0.01)
+  expect_equal(as.integer(get1("partitioned_write_max_open_files")), 7L)
+  # temp_directory = NULL leaves DuckDB's default and creates no spill dir
+  expect_null(duck$temp_dir)
+})
+
+test_that(".osb_parse_bytes() understands units and rejects garbage", {
+  expect_identical(.osb_parse_bytes("512"), 512)
+  expect_identical(.osb_parse_bytes("1.5 GiB"), 1.5 * 1024^3)
+  expect_identical(.osb_parse_bytes("4MB"), 4 * 1024^2)
+  expect_identical(.osb_parse_bytes("2k"), 2048)
+  expect_identical(.osb_parse_bytes("lots"), NA_real_)
+  expect_identical(.osb_parse_bytes("4 XB"), NA_real_)
+})
+
+test_that("auto budgets emit no SET when RAM or cores are unknown", {
+  # Falling back to DuckDB's own default beats guessing a number.
+  local_mocked_bindings(.osb_total_ram_bytes = function() NA_real_)
+  expect_null(.osb_auto_memory(1L))
+
+  local_mocked_bindings(availableCores = function(...) stop("no cores"),
+                        .package = "parallelly")
+  expect_null(.osb_auto_threads(1L))
+
+  # and .osb_con() then leaves both settings at DuckDB's values
+  bare <- DBI::dbConnect(duckdb::duckdb())
+  on.exit(DBI::dbDisconnect(bare, shutdown = TRUE), add = TRUE)
+  default_threads <- DBI::dbGetQuery(
+    bare, "SELECT current_setting('threads') AS v")$v[[1L]]
+
+  duck <- .osb_con(.osb_resolve_duckdb_config(list(temp_directory = NULL)))
+  on.exit(DBI::dbDisconnect(duck$con, shutdown = TRUE), add = TRUE)
+  expect_identical(
+    DBI::dbGetQuery(duck$con, "SELECT current_setting('threads') AS v")$v[[1L]],
+    default_threads
+  )
+})
