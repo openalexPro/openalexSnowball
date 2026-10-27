@@ -1,3 +1,5 @@
+# openalexSnowball (development version)
+
 # openalexSnowball 0.15.3
 
 - Requires openalexPro (>= 0.14.0). With current DuckDB, openalexPro 0.13.0
