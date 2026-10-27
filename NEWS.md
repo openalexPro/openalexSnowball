@@ -1,5 +1,13 @@
 # openalexSnowball (development version)
 
+- Requires openalexPro (>= 0.14.0). With current DuckDB, openalexPro 0.13.0
+  fails to convert works with abstracts ("Deprecated lambda arrow (->)
+  detected"), so `pro_snowball()` stopped in stage `get_nodes`.
+- Test cassettes re-recorded with openalexPro 0.14.0, which sends queries as
+  OpenAlex Query Objects (`via = "oqo"`, its new default). The snowball grew
+  by one work and three citations since the last recording; it still matches
+  the openalexR reference exactly.
+
 # openalexSnowball 0.15.2
 
 ## Bug fix: two more memory-mapped parquet reads, unsafe on Windows
