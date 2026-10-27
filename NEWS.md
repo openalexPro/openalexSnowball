@@ -1,4 +1,4 @@
-# openalexSnowball (development version)
+# openalexSnowball 0.15.4
 
 - License changed from GPL (>= 2) to MIT.
 - `read_snowball(meta = TRUE)` returned no `meta` element when the snowball has
