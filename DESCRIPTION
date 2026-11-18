@@ -2,8 +2,9 @@ Type: Package
 Package: openalexSnowball
 Title: Snowball searches for OpenAlex using the openalexPro pipeline
 Version: 0.15.4.9000
-Author: Rainer M Krug
-Maintainer: Rainer M Krug <Rainer@krugs.de>
+Authors@R:
+    person("Rainer M", "Krug", , "Rainer@krugs.de", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-7490-0066"))
 Description: Perform snowball searches on the OpenAlex citation graph using
     openalexPro's on-disk processing pipeline and store results in Parquet.
 URL: https://github.com/openalexPro/openalexSnowball, https://openalexpro.github.io/openalexSnowball/, https://doi.org/10.5281/zenodo.20448982

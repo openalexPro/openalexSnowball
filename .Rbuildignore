@@ -16,3 +16,5 @@
 ^skills$
 ^\.claude$
 ^vignettes$
+^CITATION\.cff$
+^\.zenodo\.json$
