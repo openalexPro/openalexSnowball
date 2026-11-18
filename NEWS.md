@@ -1,6 +1,6 @@
 # openalexSnowball 0.15.5
 
-\-\ Citation\:\ \`citation\(\"openalexSnowball\"\)\`\ now\ cites\ the\ package\ with\ its\ Zenodo\ DOI\ and\,\ separately\,\ the\ openalexPro\ ecosystem\.\ Added\ \`CITATION\.cff\`\ \(GitHub\ \"Cite\ this\ repository\"\)\ and\ \`\.zenodo\.json\`\ \(Zenodo\ metadata\,\ linking\ the\ related\ ecosystem\ packages\)\.\ The\ author\'s\ ORCID\ is\ in\ \`DESCRIPTION\`\.
+- Citation: `citation("openalexSnowball")` now cites the package with its Zenodo DOI and, separately, the openalexPro ecosystem. Added `CITATION.cff` (GitHub "Cite this repository") and `.zenodo.json` (Zenodo metadata, linking the related ecosystem packages). The author's ORCID is in `DESCRIPTION`.
 
 # openalexSnowball 0.15.4
 
