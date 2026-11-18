@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "openalexSnowball: Snowball searches for OpenAlex using the openalexPro pipeline"
+authors:
+  - family-names: Krug
+    given-names: Rainer M
+    orcid: "https://orcid.org/0000-0002-7490-0066"
+doi: 10.5281/zenodo.20448982
+license: MIT
+repository-code: "https://github.com/openalexPro/openalexSnowball"
+url: "https://openalexpro.github.io/openalexSnowball/"
+keywords: [OpenAlex, bibliometrics, R, snowball search, citation network]
+references:
+  - type: software
+    title: "The openalexPro ecosystem: R packages for large-scale work with OpenAlex"
+    authors:
+      - family-names: Krug
+        given-names: Rainer M
+        orcid: "https://orcid.org/0000-0002-7490-0066"
+    url: "https://openalexpro.github.io/"
