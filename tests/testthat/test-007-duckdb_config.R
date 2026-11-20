@@ -130,7 +130,7 @@ test_that("keypaper ids come back sorted", {
   tmp <- withr::local_tempdir()
   kp <- file.path(tmp, "keypaper_parquet")
   dir.create(kp, recursive = TRUE)
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, "SET preserve_insertion_order = false")
 
@@ -197,7 +197,7 @@ test_that("auto budgets emit no SET when RAM or cores are unknown", {
   expect_null(.osb_auto_threads(1L))
 
   # and .osb_con() then leaves both settings at DuckDB's values
-  bare <- DBI::dbConnect(duckdb::duckdb())
+  bare <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(bare, shutdown = TRUE), add = TRUE)
   default_threads <- DBI::dbGetQuery(
     bare, "SELECT current_setting('threads') AS v")$v[[1L]]
@@ -208,4 +208,13 @@ test_that("auto budgets emit no SET when RAM or cores are unknown", {
     DBI::dbGetQuery(duck$con, "SELECT current_setting('threads') AS v")$v[[1L]],
     default_threads
   )
+})
+
+test_that(".osb_duckdb() opens a connection without the storage message", {
+  withr::local_options(duckdb.home = NULL)
+  withr::local_envvar(DUCKDB_R_HOME = "")
+  expect_silent(drv <- .osb_duckdb())
+  con <- DBI::dbConnect(drv)
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  expect_equal(DBI::dbGetQuery(con, "SELECT 1 AS x")$x, 1)
 })
