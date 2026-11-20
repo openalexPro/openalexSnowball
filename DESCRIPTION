@@ -1,7 +1,7 @@
 Type: Package
 Package: openalexSnowball
 Title: Snowball searches for OpenAlex using the openalexPro pipeline
-Version: 0.15.5.9000
+Version: 0.15.6
 Authors@R:
     person("Rainer M", "Krug", , "Rainer@krugs.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-7490-0066"))
