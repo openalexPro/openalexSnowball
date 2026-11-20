@@ -70,7 +70,7 @@ devtools::document()
       [`openalexPro::pro_query()`](https://openalexpro.github.io/openalexPro/reference/pro_query.html)
       → `pro_request()` (JSON) → `pro_request_parquet()`.
     - **Snapshot** (`snapshot = <path>`): entirely offline, via
-      [`openalexSnapshot::lookup_by_id()`](https://rdrr.io/pkg/openalexSnapshot/man/lookup_by_id.html),
+      [`openalexSnapshot::lookup_by_id()`](https://openalexpro.github.io/openalexSnapshot/reference/lookup_by_id.html),
       `get_citing()` and `get_cited()`. Requires the corpus index,
       citation index, and the DOI index if keypapers are given as DOIs.
 

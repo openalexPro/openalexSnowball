@@ -1,5 +1,15 @@
 # Changelog
 
+## openalexSnowball 0.15.6
+
+- DuckDB connections no longer print duckdb 2.0’s “storing downloaded
+  extensions and secrets under ~/.duckdb” message (up to 60 times per
+  run), and no longer ask to create `~/.duckdb` in interactive sessions.
+  The location duckdb would choose itself is passed explicitly
+  (`~/.duckdb` if it exists, a temporary directory otherwise); a
+  `duckdb.home` option or `DUCKDB_R_HOME` you set is still respected
+  (openalexPro/openalexPro#88).
+
 ## openalexSnowball 0.15.5
 
 - Citation: `citation("openalexSnowball")` now cites the package with
@@ -42,7 +52,7 @@ the `_snowball_run.parquet` manifest but missed two sidecar reads:
   into the same `output` afterwards failed.
 - `pro_snowball(snapshot =)` mapped the snapshot’s
   `works_cite_idx/_index_meta.parquet`, so a later
-  [`openalexSnapshot::build_citation_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_citation_index.html)
+  [`openalexSnapshot::build_citation_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_citation_index.html)
   failed.
 
 Both now read with `mmap = FALSE`. Found while fixing the same defect in
@@ -447,7 +457,7 @@ Edges are unchanged: `inst/extract_edges.sql` already applied its own
   with or without a resolver prefix, mixed freely.
 
   Requires
-  [`openalexSnapshot::build_corpus_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html)
+  [`openalexSnapshot::build_corpus_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_corpus_index.html)
   and `build_citation_index()`, plus `build_doi_index()` for DOI
   keypapers.
 
@@ -523,11 +533,11 @@ The backward direction comes from `referenced_works`, which every work
 carries. The forward direction cannot: `cited_by_api_url` is a URL and
 is useless offline. It is instead served by inverting `referenced_works`
 into a citation index
-([`openalexSnapshot::build_citation_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_citation_index.html)),
+([`openalexSnapshot::build_citation_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_citation_index.html)),
 which is what `get_citing()` reads.
 
 Requires the indexes built by
-[`openalexSnapshot::build_corpus_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html)
+[`openalexSnapshot::build_corpus_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_corpus_index.html)
 and `build_citation_index()`, plus `build_doi_index()` when keypapers
 are given as DOIs. Keypapers may be OpenAlex ids (short or long form) or
 DOIs (with or without a resolver), mixed freely in one call.

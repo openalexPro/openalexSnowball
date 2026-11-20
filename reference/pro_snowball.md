@@ -41,11 +41,11 @@ pro_snowball(
   OpenAlex API; when `NULL` (the default) behaviour is unchanged.
 
   Snapshot mode requires the indexes built by
-  [`openalexSnapshot::build_corpus_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html)
+  [`openalexSnapshot::build_corpus_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_corpus_index.html)
   and
-  [`openalexSnapshot::build_citation_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_citation_index.html),
+  [`openalexSnapshot::build_citation_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_citation_index.html),
   plus
-  [`openalexSnapshot::build_doi_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_doi_index.html)
+  [`openalexSnapshot::build_doi_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_doi_index.html)
   if keypapers are given as DOIs.
 
   The output construct is identical – `nodes/` and `edges/` partitioned

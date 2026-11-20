@@ -46,14 +46,14 @@ pro_snowball_get_nodes(
   `parquet/`, or the `parquet/` directory itself). When supplied, nodes
   are gathered offline from the snapshot instead of the OpenAlex API.
   Requires the indexes built by
-  [`openalexSnapshot::build_corpus_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html)
+  [`openalexSnapshot::build_corpus_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_corpus_index.html)
   and `build_citation_index()`. Default `NULL` (use the API).
 
 - max_results:
 
   Snapshot mode only: refuse to expand a keypaper with more citing works
   than this. See
-  [`openalexSnapshot::get_citing()`](https://rdrr.io/pkg/openalexSnapshot/man/get_citing.html).
+  [`openalexSnapshot::get_citing()`](https://openalexpro.github.io/openalexSnapshot/reference/get_citing.html).
 
 - workers:
 

@@ -9,7 +9,7 @@ tibble/data frame."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">openalexSnowball</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.15.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -35,7 +35,7 @@ tibble/data frame."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>A function to perform a snowball search and convert the result to a tibble/data frame.</h1>
-      <small class="dont-index">Source: <a href="https://github.com/openalexPro/openalexSnowball/blob/v0.15.5/R/pro_snowball.R" class="external-link"><code>R/pro_snowball.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/openalexPro/openalexSnowball/blob/main/R/pro_snowball.R" class="external-link"><code>R/pro_snowball.R</code></a></small>
       <div class="d-none name"><code>pro_snowball.Rd</code></div>
     </div>
 
@@ -81,9 +81,9 @@ containing <code>parquet/</code>, or the <code>parquet/</code> directory itself)
 the whole snowball is built <strong>offline</strong> from the snapshot instead of the
 OpenAlex API; when <code>NULL</code> (the default) behaviour is unchanged.</p>
 <p>Snapshot mode requires the indexes built by
-<code><a href="https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html" class="external-link">openalexSnapshot::build_corpus_index()</a></code> and
-<code><a href="https://rdrr.io/pkg/openalexSnapshot/man/build_citation_index.html" class="external-link">openalexSnapshot::build_citation_index()</a></code>, plus
-<code><a href="https://rdrr.io/pkg/openalexSnapshot/man/build_doi_index.html" class="external-link">openalexSnapshot::build_doi_index()</a></code> if keypapers are given as DOIs.</p>
+<code><a href="https://openalexpro.github.io/openalexSnapshot/reference/build_corpus_index.html" class="external-link">openalexSnapshot::build_corpus_index()</a></code> and
+<code><a href="https://openalexpro.github.io/openalexSnapshot/reference/build_citation_index.html" class="external-link">openalexSnapshot::build_citation_index()</a></code>, plus
+<code><a href="https://openalexpro.github.io/openalexSnapshot/reference/build_doi_index.html" class="external-link">openalexSnapshot::build_doi_index()</a></code> if keypapers are given as DOIs.</p>
 <p>The output construct is identical – <code>nodes/</code> and <code>edges/</code> partitioned the
 same way, readable by <code><a href="read_snowball.html">read_snowball()</a></code> – but the <strong>node columns differ</strong>,
 because snapshot records are not API records. Snapshot nodes carry

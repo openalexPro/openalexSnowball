@@ -85,7 +85,7 @@ pro_snowball(
 ```
 
 Needs the indexes built by
-[`openalexSnapshot::build_corpus_index()`](https://rdrr.io/pkg/openalexSnapshot/man/build_corpus_index.html)
+[`openalexSnapshot::build_corpus_index()`](https://openalexpro.github.io/openalexSnapshot/reference/build_corpus_index.html)
 and `build_citation_index()`, plus `build_doi_index()` for DOI
 keypapers.
 
