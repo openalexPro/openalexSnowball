@@ -183,7 +183,7 @@ snowball_duckdb_config <- function(
   function() {
     if (!is.null(cached)) return(cached)
     out <- tryCatch({
-      con <- DBI::dbConnect(duckdb::duckdb())
+      con <- DBI::dbConnect(.osb_duckdb())
       on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
       v <- DBI::dbGetQuery(con, "SELECT current_setting('memory_limit') AS v")$v[[1L]]
       .osb_parse_bytes(v) / 0.8
@@ -241,6 +241,29 @@ snowball_duckdb_config <- function(
   file.path(base, key, gsub("[^A-Za-z0-9._-]", "_", tag))
 }
 
+#' DuckDB driver without the storage-location message
+#'
+#' duckdb >= 2.0.0 announces where it keeps extensions and secrets every
+#' time `duckdb()` has to pick that location itself (up to 60 times per
+#' non-interactive session, and it may prompt to create `~/.duckdb` in an
+#' interactive one). Making the choice explicit silences it. We pick exactly
+#' what duckdb would have picked -- the shared `~/.duckdb` if it exists, a
+#' per-session temporary directory otherwise -- and leave a user's own
+#' choice (`duckdb.home` option, `DUCKDB_R_HOME`) alone. Same as
+#' openalexPro's `.pro_duckdb()`.
+#'
+#' @return A duckdb driver object.
+#' @keywords internal
+#' @noRd
+.osb_duckdb <- function() {
+  user_chose <- !is.null(getOption("duckdb.home")) ||
+    nzchar(Sys.getenv("DUCKDB_R_HOME"))
+  if (user_chose || !"shared_home" %in% names(formals(duckdb::duckdb))) {
+    return(duckdb::duckdb())
+  }
+  duckdb::duckdb(shared_home = dir.exists("~/.duckdb"))
+}
+
 #' Open a configured DuckDB connection
 #'
 #' @param cfg A resolved configuration (see [.osb_resolve_duckdb_config()]).
@@ -250,7 +273,7 @@ snowball_duckdb_config <- function(
 #'   default was left in place). The caller disconnects and unlinks.
 #' @noRd
 .osb_con <- function(cfg, tag = "main", output = NULL) {
-  con <- DBI::dbConnect(duckdb::duckdb(), read_only = FALSE)
+  con <- DBI::dbConnect(.osb_duckdb(), read_only = FALSE)
 
   set <- function(key, value) {
     DBI::dbExecute(con, paste0("SET ", key, " = ", value))

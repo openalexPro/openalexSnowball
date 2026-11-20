@@ -51,7 +51,7 @@ old_assemble_sql <- function(sources_sql, nodes_dir) {
 make_wide_fixture <- function(dir, n_rows = 1000000L, n_ids = 50000L) {
   d <- file.path(dir, "citing_parquet", "query=chunk_0")
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbExecute(con, sprintf(
     "COPY (
@@ -81,7 +81,7 @@ test_that("the old windowed statement OOMs where the new one streams", {
   # max_temp_directory_size = 0 is the essential part: DuckDB's default is 90%
   # of free disk, so without it the old statement merely spills and gets slow
   # instead of failing, and the test would take minutes and prove nothing.
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   # Note: `duckdb(config = list(memory_limit = ...))` is silently ignored by
   # the R driver -- the limit stays at 80% of RAM. It must be SET.
@@ -114,7 +114,7 @@ test_that("the assembly plan contains no window operator", {
   # materialises every wide nested column before emitting a row.
   out <- withr::local_tempdir()
   make_wide_fixture(out, n_rows = 2000L, n_ids = 1500L)
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   # .assemble_nodes() drops its TEMP table on exit, so rebuild the narrow
@@ -170,7 +170,7 @@ test_that("duplicates within one relation collapse to one row", {
   dir.create(dup, recursive = TRUE, showWarnings = FALSE)
   file.copy(src, file.path(dup, "data_0.parquet"))
 
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   .assemble_nodes(out, con = con)
 
@@ -188,7 +188,7 @@ test_that("assembly is idempotent and does not append into an existing nodes/", 
   # ids 0.12.1 removed. Assembly now builds into .nodes.building and renames.
   out <- withr::local_tempdir()
   make_wide_fixture(out, n_rows = 300L, n_ids = 300L)
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   .assemble_nodes(out, con = con)
@@ -219,7 +219,7 @@ test_that("the written node schema does not depend on the keypaper count", {
     file.path(extra, "data_0.parquet")
   )
 
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   .assemble_nodes(out1, con = con)
   .assemble_nodes(out2, con = con)

@@ -121,7 +121,7 @@ test_that(".assemble_nodes() refuses to assemble nothing", {
   out <- withr::local_tempdir()
   # an empty *_parquet directory does not count as collected
   dir.create(file.path(out, "citing_parquet"))
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   expect_error(.assemble_nodes(out, con = con), "No nodes were collected.")
 })
@@ -133,7 +133,7 @@ test_that("a relation whose works were all promoted writes no partition", {
   out <- withr::local_tempdir()
   write_rel(out, "keypaper", "W1", refs = list("https://openalex.org/W1"))
   write_rel(out, "cited", "W1")
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   msgs <- testthat::capture_messages(
@@ -167,7 +167,7 @@ test_that("a nodes/ that cannot be moved into place is an error", {
   )
   withr::defer(Sys.chmod(out, "0755"))
 
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(.osb_duckdb())
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   expect_error(
     suppressWarnings(.assemble_nodes(out, con = con)),
