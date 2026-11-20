@@ -1,3 +1,5 @@
+# openalexSnowball (development version)
+
 # openalexSnowball 0.15.6
 
 - DuckDB connections no longer print duckdb 2.0's "storing downloaded
